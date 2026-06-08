@@ -11,7 +11,8 @@ const LOCAL_STADIUMS_URL = "/data/worldcup-stadiums.json";
 let cachedMatches: Match[] | null = null;
 
 function remoteBaseUrl(): string {
-  return import.meta.env.DEV ? "/api/worldcup" : "https://worldcup26.ir/get";
+  // Mismo origen en dev (proxy Vite) y prod (rewrite Vercel) para evitar CORS.
+  return "/api/worldcup";
 }
 
 function parseKickoff(localDate: string): Date {
