@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isLeagueMember(leagueId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/leagues/$(leagueId)/members/$(request.auth.uid));
+    }
+
+    function isLeagueAdmin(leagueId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/leagues/$(leagueId)/members/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isJoinMemberCountUpdate() {
+      return request.resource.data.memberCount == resource.data.memberCount + 1
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.prize == resource.data.prize
+        && request.resource.data.winners == resource.data.winners
+        && request.resource.data.scoringMode == resource.data.scoringMode
+        && request.resource.data.resultPoints == resource.data.resultPoints
+        && request.resource.data.exactBonus == resource.data.exactBonus
+        && request.resource.data.adminId == resource.data.adminId
+        && request.resource.data.adminName == resource.data.adminName
+        && request.resource.data.inviteCode == resource.data.inviteCode
+        && request.resource.data.tournamentId == resource.data.tournamentId
+        && request.resource.data.status == resource.data.status;
+    }
+
+    function isInvitePreviewCountUpdate() {
+      return request.resource.data.leagueId == resource.data.leagueId
+        && request.resource.data.memberCount == resource.data.memberCount + 1;
+    }
+
+    function isValidPredictionData() {
+      return request.resource.data.userId == request.auth.uid
+        && request.resource.data.homeScore is int
+        && request.resource.data.awayScore is int
+        && request.resource.data.homeScore >= 0
+        && request.resource.data.homeScore <= 15
+        && request.resource.data.awayScore >= 0
+        && request.resource.data.awayScore <= 15
+        && request.resource.data.kickoffAt > request.time;
+    }
+
+    function isOwnPredictionDoc(predictionId) {
+      return predictionId == request.auth.uid + '_' + request.resource.data.matchId;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+
+      match /leagueMemberships/{leagueId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    match /inviteCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && isInvitePreviewCountUpdate();
+      allow delete: if false;
+    }
+
+    match /leagues/{leagueId} {
+      allow read: if isLeagueMember(leagueId);
+      allow create: if isSignedIn()
+        && request.resource.data.adminId == request.auth.uid
+        && request.resource.data.memberCount == 1;
+      allow update: if isLeagueAdmin(leagueId)
+        || (isSignedIn() && isJoinMemberCountUpdate());
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isLeagueMember(leagueId);
+        allow create: if isSignedIn() && memberId == request.auth.uid;
+        allow update: if isLeagueAdmin(leagueId) || memberId == request.auth.uid;
+        allow delete: if isLeagueAdmin(leagueId);
+      }
+
+      match /predictions/{predictionId} {
+        allow get, list: if isLeagueMember(leagueId);
+        allow create: if isLeagueMember(leagueId)
+          && isOwnPredictionDoc(predictionId)
+          && isValidPredictionData();
+        allow update: if isLeagueMember(leagueId)
+          && isOwnPredictionDoc(predictionId)
+          && isValidPredictionData()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if false;
+      }
+    }
+  }
+}
