@@ -1,9 +1,12 @@
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   GoogleAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword,
   updateProfile,
   type User,
 } from "firebase/auth";
@@ -78,4 +81,41 @@ export async function signUpWithEmail(
 
 export async function logOut(): Promise<void> {
   await signOut(auth);
+}
+
+export function usesPasswordProvider(user: User): boolean {
+  return user.providerData.some((provider) => provider.providerId === "password");
+}
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const user = auth.currentUser;
+  if (!user?.email) {
+    throw new Error("Debes iniciar sesion con correo y contraseña.");
+  }
+
+  if (!usesPasswordProvider(user)) {
+    throw new Error("Tu cuenta usa Google. Cambia la contraseña desde tu cuenta de Google.");
+  }
+
+  if (newPassword.length < 6) {
+    throw new Error("La nueva contraseña debe tener al menos 6 caracteres.");
+  }
+
+  try {
+    const credential = EmailAuthProvider.credential(user.email, currentPassword);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, newPassword);
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+      throw new Error("La contraseña actual no es correcta.");
+    }
+    if (code === "auth/weak-password") {
+      throw new Error("La nueva contraseña es demasiado debil.");
+    }
+    throw new Error(mapAuthError(code));
+  }
 }

@@ -9,6 +9,7 @@ type AuthContextValue = {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -21,6 +22,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void getAnalyticsInstance();
   }, []);
+
+  const refreshProfile = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setProfile(null);
+      return;
+    }
+
+    const nextProfile = await ensureUserProfile(currentUser);
+    setProfile(nextProfile);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
@@ -44,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, profile, loading, refreshProfile }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

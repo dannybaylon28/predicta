@@ -60,9 +60,9 @@ export function AppShell() {
         <div className="top-actions">
           {!loading && user ? (
             <>
-              <span className="user-chip" title={user.email ?? undefined}>
+              <Link className="user-chip" to="/perfil" title={user.email ?? undefined}>
                 {displayName}
-              </span>
+              </Link>
               <button className="ghost-button" onClick={handleSignOut} type="button">
                 <LogOut size={16} />
                 Salir

@@ -12,6 +12,7 @@ import { PrivacyPage } from "../pages/PrivacyPage";
 import { RulesPage } from "../pages/RulesPage";
 import { PremiumPage } from "../pages/PremiumPage";
 import { PremiumSuccessPage } from "../pages/PremiumSuccessPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { TermsPage } from "../pages/TermsPage";
 
 export const router = createBrowserRouter([
@@ -85,6 +86,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <RulesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "perfil",
+        element: (
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         ),
       },

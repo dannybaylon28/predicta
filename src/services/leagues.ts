@@ -14,8 +14,9 @@ import { ACTIVE_TOURNAMENT_ID } from "../constants/tournaments";
 import type { LeagueRecord, ScoringMode } from "../types";
 import { generateInviteCode } from "../utils/inviteCode";
 import { normalizeInviteCode } from "../utils/inviteLink";
+import { mapFirestoreError } from "../utils/firestoreErrors";
 import { assertCanAddMember, assertCanCreateLeague } from "../utils/planLimits";
-import { countAdminLeagues, ensureTournamentUsageDoc, hasPremium } from "./entitlements";
+import { countAdminLeagues, hasPremium } from "./entitlements";
 
 const TOURNAMENT_ID = ACTIVE_TOURNAMENT_ID;
 
@@ -158,7 +159,6 @@ export async function createLeague(
 
   const adminLeagueCount = countAdminLeagues(myLeagues, admin.uid, TOURNAMENT_ID);
   assertCanCreateLeague(premium, adminLeagueCount);
-  await ensureTournamentUsageDoc(admin.uid, TOURNAMENT_ID);
 
   const leagueRef = doc(collection(db, "leagues"));
   const inviteCode = await createUniqueInviteCode();
@@ -214,7 +214,12 @@ export async function createLeague(
     tournamentId: TOURNAMENT_ID,
     leaguesCreated: adminLeagueCount + 1,
   });
-  await batch.commit();
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    throw mapFirestoreError(error, "No pudimos crear la liga.");
+  }
 
   return mapLeague(leagueRef.id, {
     ...leagueData,
