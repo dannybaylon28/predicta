@@ -3,6 +3,7 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -81,6 +82,26 @@ export async function signUpWithEmail(
 
 export async function logOut(): Promise<void> {
   await signOut(auth);
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    throw new Error("Ingresa tu correo para recuperar la contraseña.");
+  }
+
+  const continueUrl =
+    import.meta.env.VITE_APP_URL?.trim() ||
+    (typeof window !== "undefined" ? window.location.origin : "https://predictaclub.com");
+
+  try {
+    await sendPasswordResetEmail(auth, trimmed, {
+      url: `${continueUrl.replace(/\/$/, "")}/entrar`,
+    });
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? "";
+    throw new Error(mapAuthError(code));
+  }
 }
 
 export function usesPasswordProvider(user: User): boolean {

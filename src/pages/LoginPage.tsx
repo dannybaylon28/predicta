@@ -1,10 +1,16 @@
 import { ArrowRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { PasswordField } from "../components/auth/PasswordField";
 import { useAuth } from "../context/AuthContext";
-import { signInWithEmail, signInWithGoogle, signUpWithEmail } from "../services/auth";
+import {
+  sendPasswordReset,
+  signInWithEmail,
+  signInWithGoogle,
+  signUpWithEmail,
+} from "../services/auth";
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "reset";
 
 export function LoginPage() {
   const { user, loading } = useAuth();
@@ -16,25 +22,44 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   if (!loading && user) {
     return <Navigate to={from} replace />;
   }
 
+  const switchMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setError("");
+    setSuccess("");
+    if (nextMode !== "register") {
+      setConfirmPassword("");
+    }
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    setSuccess("");
     setSubmitting(true);
 
     try {
       if (mode === "login") {
         await signInWithEmail(email, password);
-      } else {
+        navigate(from, { replace: true });
+      } else if (mode === "register") {
+        if (password !== confirmPassword) {
+          throw new Error("Las contraseñas no coinciden.");
+        }
         await signUpWithEmail(email, password, displayName);
+        navigate(from, { replace: true });
+      } else {
+        await sendPasswordReset(email);
+        setSuccess("Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo.");
       }
-      navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ocurrio un error.");
     } finally {
@@ -44,6 +69,7 @@ export function LoginPage() {
 
   const handleGoogle = async () => {
     setError("");
+    setSuccess("");
     setSubmitting(true);
 
     try {
@@ -60,27 +86,33 @@ export function LoginPage() {
     <section className="auth-page">
       <div className="auth-card">
         <p className="overline">Acceso</p>
-        <h2>Entra a Predicta</h2>
+        <h2>
+          {mode === "reset" ? "Recuperar contraseña" : "Entra a Predicta"}
+        </h2>
         <p className="auth-copy">
-          Inicia sesion para crear ligas, marcar predicciones y ver la clasificacion con tu grupo.
+          {mode === "reset"
+            ? "Te enviaremos un enlace a tu correo para crear una nueva contraseña."
+            : "Inicia sesion para crear ligas, marcar predicciones y ver la clasificacion con tu grupo."}
         </p>
 
-        <div className="auth-tabs">
-          <button
-            type="button"
-            className={mode === "login" ? "auth-tab active" : "auth-tab"}
-            onClick={() => setMode("login")}
-          >
-            Iniciar sesion
-          </button>
-          <button
-            type="button"
-            className={mode === "register" ? "auth-tab active" : "auth-tab"}
-            onClick={() => setMode("register")}
-          >
-            Crear cuenta
-          </button>
-        </div>
+        {mode !== "reset" && (
+          <div className="auth-tabs">
+            <button
+              type="button"
+              className={mode === "login" ? "auth-tab active" : "auth-tab"}
+              onClick={() => switchMode("login")}
+            >
+              Iniciar sesion
+            </button>
+            <button
+              type="button"
+              className={mode === "register" ? "auth-tab active" : "auth-tab"}
+              onClick={() => switchMode("register")}
+            >
+              Crear cuenta
+            </button>
+          </div>
+        )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode === "register" && (
@@ -105,43 +137,78 @@ export function LoginPage() {
               required
             />
           </label>
-          <label>
-            Contraseña
-            <input
-              type="password"
+
+          {mode !== "reset" && (
+            <PasswordField
+              label="Contraseña"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Minimo 6 caracteres"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               minLength={6}
-              required
             />
-          </label>
+          )}
+
+          {mode === "register" && (
+            <PasswordField
+              label="Confirmar contraseña"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              placeholder="Repite tu contraseña"
+              autoComplete="new-password"
+              minLength={6}
+            />
+          )}
+
+          {mode === "login" && (
+            <button
+              className="auth-inline-link"
+              type="button"
+              onClick={() => switchMode("reset")}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
 
           {error && <p className="auth-error">{error}</p>}
+          {success && <p className="auth-success">{success}</p>}
 
           <button className="primary-button full" type="submit" disabled={submitting}>
             {submitting
               ? "Procesando..."
               : mode === "login"
                 ? "Entrar"
-                : "Crear cuenta"}
+                : mode === "register"
+                  ? "Crear cuenta"
+                  : "Enviar enlace"}
             <ArrowRight size={18} />
           </button>
         </form>
 
-        <div className="auth-divider">
-          <span>o</span>
-        </div>
+        {mode === "reset" && (
+          <p className="auth-footer">
+            <button className="auth-inline-link" type="button" onClick={() => switchMode("login")}>
+              Volver a iniciar sesion
+            </button>
+          </p>
+        )}
 
-        <button
-          className="secondary-button full google-button"
-          type="button"
-          onClick={handleGoogle}
-          disabled={submitting}
-        >
-          Continuar con Google
-        </button>
+        {mode !== "reset" && (
+          <>
+            <div className="auth-divider">
+              <span>o</span>
+            </div>
+
+            <button
+              className="secondary-button full google-button"
+              type="button"
+              onClick={handleGoogle}
+              disabled={submitting}
+            >
+              Continuar con Google
+            </button>
+          </>
+        )}
 
         {mode === "register" && (
           <p className="auth-legal">
