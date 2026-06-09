@@ -20,7 +20,23 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/leagues/$(leagueId)/members/$(request.auth.uid)).data.role == "admin";
     }
 
-    function isJoinMemberCountUpdate() {
+    function hasPremium(userId, tournamentId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/entitlements/$(tournamentId))
+        && get(/databases/$(database)/documents/users/$(userId)/entitlements/$(tournamentId)).data.status == "active";
+    }
+
+    function leagueAdminHasPremium(leagueId) {
+      let league = get(/databases/$(database)/documents/leagues/$(leagueId));
+      return hasPremium(league.data.adminId, league.data.tournamentId);
+    }
+
+    function canCreateLeague(userId, tournamentId) {
+      return hasPremium(userId, tournamentId)
+        || !exists(/databases/$(database)/documents/users/$(userId)/tournamentUsage/$(tournamentId))
+        || get(/databases/$(database)/documents/users/$(userId)/tournamentUsage/$(tournamentId)).data.leaguesCreated < 1;
+    }
+
+    function isJoinMemberCountUpdate(leagueId) {
       return request.resource.data.memberCount == resource.data.memberCount + 1
         && request.resource.data.name == resource.data.name
         && request.resource.data.prize == resource.data.prize
@@ -32,7 +48,8 @@ service cloud.firestore {
         && request.resource.data.adminName == resource.data.adminName
         && request.resource.data.inviteCode == resource.data.inviteCode
         && request.resource.data.tournamentId == resource.data.tournamentId
-        && request.resource.data.status == resource.data.status;
+        && request.resource.data.status == resource.data.status
+        && (resource.data.memberCount < 10 || leagueAdminHasPremium(leagueId));
     }
 
     function isInvitePreviewCountUpdate() {
@@ -55,6 +72,19 @@ service cloud.firestore {
       return predictionId == request.auth.uid + '_' + request.resource.data.matchId;
     }
 
+    function isTournamentUsageWrite(userId, tournamentId) {
+      return isOwner(userId)
+        && request.resource.data.tournamentId == tournamentId
+        && request.resource.data.leaguesCreated is int
+        && request.resource.data.leaguesCreated >= 1
+        && request.resource.data.leaguesCreated <= 50
+        && (
+          !exists(/databases/$(database)/documents/users/$(userId)/tournamentUsage/$(tournamentId))
+          || request.resource.data.leaguesCreated == resource.data.leaguesCreated + 1
+          || hasPremium(userId, tournamentId)
+        );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
@@ -66,6 +96,17 @@ service cloud.firestore {
         allow create: if isOwner(userId);
         allow update: if isOwner(userId);
         allow delete: if isOwner(userId);
+      }
+
+      match /entitlements/{tournamentId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      match /tournamentUsage/{tournamentId} {
+        allow read: if isOwner(userId);
+        allow create, update: if isTournamentUsageWrite(userId, tournamentId);
+        allow delete: if false;
       }
     }
 
@@ -80,9 +121,10 @@ service cloud.firestore {
       allow read: if isLeagueMember(leagueId);
       allow create: if isSignedIn()
         && request.resource.data.adminId == request.auth.uid
-        && request.resource.data.memberCount == 1;
+        && request.resource.data.memberCount == 1
+        && canCreateLeague(request.auth.uid, request.resource.data.tournamentId);
       allow update: if isLeagueAdmin(leagueId)
-        || (isSignedIn() && isJoinMemberCountUpdate());
+        || (isSignedIn() && isJoinMemberCountUpdate(leagueId));
       allow delete: if false;
 
       match /members/{memberId} {

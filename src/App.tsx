@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { LeagueProvider } from "./context/LeagueContext";
 import { MatchesProvider } from "./context/MatchesContext";
 import { ToastProvider } from "./context/ToastContext";
+import { UpgradeProvider } from "./context/UpgradeContext";
 
 function App() {
   return (
@@ -11,7 +12,9 @@ function App() {
       <ToastProvider>
         <MatchesProvider>
           <LeagueProvider>
-            <RouterProvider router={router} />
+            <UpgradeProvider>
+              <RouterProvider router={router} />
+            </UpgradeProvider>
           </LeagueProvider>
         </MatchesProvider>
       </ToastProvider>

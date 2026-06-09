@@ -75,3 +75,17 @@ export type UserProfile = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type TournamentEntitlement = {
+  tournamentId: string;
+  status: "active" | "expired";
+  purchasedAt: string;
+  currency: "mxn" | "usd";
+  amount: number;
+  stripeSessionId?: string;
+};
+
+export type TournamentUsage = {
+  tournamentId: string;
+  leaguesCreated: number;
+};

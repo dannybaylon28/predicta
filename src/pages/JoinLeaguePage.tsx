@@ -7,7 +7,9 @@ import { useAuth } from "../context/AuthContext";
 import { useLeague } from "../context/LeagueContext";
 import { useToast } from "../context/ToastContext";
 import { getLeaguePreviewByCode, type LeaguePreview } from "../services/leagues";
+import { PlanLimitError } from "../constants/plan";
 import { APP_NAME } from "../constants/brand";
+import { useUpgrade } from "../context/UpgradeContext";
 import { buildJoinUrl, normalizeInviteCode } from "../utils/inviteLink";
 import { resetPageMeta, setPageMeta } from "../utils/pageMeta";
 
@@ -16,6 +18,7 @@ export function JoinLeaguePage() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   const { joinLeagueByCode, joining, joinError } = useLeague();
+  const { openUpgrade } = useUpgrade();
   const { showToast } = useToast();
 
   const [codeInput, setCodeInput] = useState(codeParam ? normalizeInviteCode(codeParam) : "");
@@ -92,6 +95,10 @@ export function JoinLeaguePage() {
       showToast(`Te uniste a ${preview.name}.`);
       navigate("/mis-ligas");
     } catch (err) {
+      if (err instanceof PlanLimitError) {
+        openUpgrade(err.code);
+        return;
+      }
       const message = err instanceof Error ? err.message : "No pudimos unirte a la liga.";
       if (message.includes("Ya perteneces")) {
         setAlreadyMember(true);
@@ -149,6 +156,12 @@ export function JoinLeaguePage() {
             <p className="join-preview-code">
               Codigo: <strong>{preview.code}</strong>
             </p>
+            {preview.isFull && (
+              <p className="auth-error">
+                Esta liga ya alcanzo el limite gratuito de miembros. El administrador debe activar
+                Premium.
+              </p>
+            )}
             <InviteQrPanel leagueName={preview.name} inviteCode={preview.code} />
           </article>
         )}
@@ -167,7 +180,7 @@ export function JoinLeaguePage() {
             className="primary-button"
             type="button"
             onClick={handleJoin}
-            disabled={!preview || joining}
+            disabled={!preview || joining || preview.isFull}
           >
             {joining ? "Uniendote..." : `Unirme como ${displayName}`}
             <ArrowRight size={18} />

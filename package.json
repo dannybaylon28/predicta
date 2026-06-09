@@ -13,13 +13,17 @@
     "vercel:env": "node scripts/push-vercel-env.mjs"
   },
   "dependencies": {
+    "@vercel/node": "^5.8.14",
     "@vitejs/plugin-react": "^4.3.4",
     "firebase": "^11.10.0",
+    "firebase-admin": "^14.0.0",
     "lucide-react": "^0.468.0",
+    "micro": "^10.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-qr-code": "^2.0.21",
     "react-router-dom": "^6.30.4",
+    "stripe": "^22.2.0",
     "vite": "^6.0.5"
   },
   "devDependencies": {

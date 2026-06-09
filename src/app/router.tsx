@@ -10,6 +10,8 @@ import { LoginPage } from "../pages/LoginPage";
 import { PredictionsPage } from "../pages/PredictionsPage";
 import { PrivacyPage } from "../pages/PrivacyPage";
 import { RulesPage } from "../pages/RulesPage";
+import { PremiumPage } from "../pages/PremiumPage";
+import { PremiumSuccessPage } from "../pages/PremiumSuccessPage";
 import { TermsPage } from "../pages/TermsPage";
 
 export const router = createBrowserRouter([
@@ -21,6 +23,15 @@ export const router = createBrowserRouter([
       { path: "entrar", element: <LoginPage /> },
       { path: "terminos", element: <TermsPage /> },
       { path: "privacidad", element: <PrivacyPage /> },
+      { path: "premium", element: <PremiumPage /> },
+      {
+        path: "premium/exito",
+        element: (
+          <ProtectedRoute>
+            <PremiumSuccessPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "unirse",
         element: (

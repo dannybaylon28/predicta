@@ -18,15 +18,20 @@ import { MatchRows } from "../components/match/MatchRows";
 import { Metric } from "../components/ui/Metric";
 import { APP_NAME } from "../constants/brand";
 import { scoringLabels } from "../constants/scoring";
+import { FREE_MEMBER_LIMIT } from "../constants/plan";
 import { useLeague } from "../context/LeagueContext";
 import { useMatches } from "../context/MatchesContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { usePremium } from "../hooks/usePremium";
 
 export function DashboardPage() {
   const { leagues, selectedLeague, selectedLeagueId, setSelectedLeagueId, loading, loadError } =
     useLeague();
   const { openMatches } = useMatches();
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const { isPremium, membersRemainingForLeague } = usePremium();
 
   if (loading) {
     return (
@@ -107,6 +112,9 @@ export function DashboardPage() {
     }
   };
 
+  const isAdmin = selectedLeague.adminId === user?.uid;
+  const membersLeft = membersRemainingForLeague(selectedLeague.members);
+
   return (
     <section className="page-grid">
       <aside className="league-rail">
@@ -137,6 +145,9 @@ export function DashboardPage() {
         <Link className="secondary-button full" to="/unirse">
           Unirme a una liga
         </Link>
+        <Link className="ghost-button full" to="/premium">
+          {isPremium ? "Premium activo" : "Ver Premium"}
+        </Link>
       </aside>
 
       <div className="dashboard-main">
@@ -145,6 +156,12 @@ export function DashboardPage() {
             <p className="overline">Liga activa</p>
             <h2>{selectedLeague.name}</h2>
             <p>{selectedLeague.prize}</p>
+            {isAdmin && !isPremium && membersLeft !== null && (
+              <p className="plan-banner-inline">
+                Cupos restantes en tu liga: <strong>{membersLeft}</strong> de {FREE_MEMBER_LIMIT}.{" "}
+                <Link to="/premium">Actualizar a Premium</Link>
+              </p>
+            )}
           </div>
           <div className="invite-box">
             <span>Codigo de invitacion</span>

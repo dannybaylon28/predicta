@@ -1,14 +1,19 @@
 import { ArrowRight, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { PlanLimitError } from "../constants/plan";
 import { getScoringDescription, scoringLabels } from "../constants/scoring";
+import { useUpgrade } from "../context/UpgradeContext";
 import { useLeague } from "../context/LeagueContext";
+import { usePremium } from "../hooks/usePremium";
 import type { ScoringMode } from "../types";
 
 export function CreateLeaguePage() {
   const navigate = useNavigate();
   const { leagueDraft, setLeagueDraft, saveLeague, saving, saveError, clearSaveError } =
     useLeague();
+  const { openUpgrade } = useUpgrade();
+  const { isPremium, canCreateLeague, leaguesRemaining } = usePremium();
   const [formError, setFormError] = useState("");
 
   useEffect(() => {
@@ -27,6 +32,10 @@ export function CreateLeaguePage() {
       await saveLeague();
       navigate("/mis-ligas");
     } catch (err) {
+      if (err instanceof PlanLimitError) {
+        openUpgrade(err.code);
+        return;
+      }
       setFormError(err instanceof Error ? err.message : "No pudimos crear la liga.");
     }
   };
@@ -36,6 +45,23 @@ export function CreateLeaguePage() {
       <div className="builder-copy">
         <p className="overline">Nueva liga</p>
         <h2>Arma la quiniela como tu grupo la juega.</h2>
+        <div className="plan-banner">
+          {isPremium ? (
+            <p>
+              <strong>Premium activo.</strong> Puedes crear ligas ilimitadas para el Mundial 2026.
+            </p>
+          ) : (
+            <p>
+              Plan gratuito: <strong>{leaguesRemaining ?? 0}</strong> liga restante por torneo.{" "}
+              {!canCreateLeague && (
+                <>
+                  Necesitas <Link to="/premium">Premium</Link> para crear otra.
+                </>
+              )}
+            </p>
+          )}
+        </div>
+
         <div className="scoring-explainer" aria-live="polite">
           <p className="scoring-explainer-label">Modo seleccionado</p>
           <h3>{scoringInfo.title}</h3>

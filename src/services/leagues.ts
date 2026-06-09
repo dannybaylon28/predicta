@@ -8,12 +8,16 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { PlanLimitError } from "../constants/plan";
 import type { LeagueDraft } from "../context/LeagueContext";
+import { ACTIVE_TOURNAMENT_ID } from "../constants/tournaments";
 import type { LeagueRecord, ScoringMode } from "../types";
 import { generateInviteCode } from "../utils/inviteCode";
 import { normalizeInviteCode } from "../utils/inviteLink";
+import { assertCanAddMember, assertCanCreateLeague } from "../utils/planLimits";
+import { countAdminLeagues, ensureTournamentUsageDoc, hasPremium } from "./entitlements";
 
-const TOURNAMENT_ID = "world-cup-2026";
+const TOURNAMENT_ID = ACTIVE_TOURNAMENT_ID;
 
 type LeagueDoc = {
   name: string;
@@ -64,6 +68,9 @@ export type LeaguePreview = {
   memberCount: number;
   adminName: string;
   scoringMode: ScoringMode;
+  tournamentId: string;
+  adminId: string;
+  isFull: boolean;
 };
 
 function mapLeague(id: string, data: LeagueDoc): LeagueRecord {
@@ -103,14 +110,34 @@ export async function getLeaguePreviewByCode(rawCode: string): Promise<LeaguePre
   const data = snap.data() as Partial<InviteCodeDoc>;
   if (!data.leagueId) throw new Error("Codigo no valido. Verifica e intenta de nuevo.");
 
+  const leagueSnap = await getDoc(doc(db, "leagues", data.leagueId));
+  if (!leagueSnap.exists()) throw new Error("La liga ya no existe.");
+
+  const league = leagueSnap.data() as LeagueDoc;
+  const adminPremium = await hasPremium(league.adminId, league.tournamentId);
+
+  let isFull = false;
+  try {
+    assertCanAddMember(adminPremium, league.memberCount);
+  } catch (err) {
+    if (err instanceof PlanLimitError && err.code === "MEMBER_LIMIT") {
+      isFull = true;
+    } else {
+      throw err;
+    }
+  }
+
   return {
     leagueId: data.leagueId,
     code,
-    name: data.name ?? "Liga privada",
-    prize: data.prize ?? "Por definir",
-    memberCount: data.memberCount ?? 1,
-    adminName: data.adminName ?? "Admin",
-    scoringMode: data.scoringMode ?? "hybrid",
+    name: data.name ?? league.name ?? "Liga privada",
+    prize: data.prize ?? league.prize ?? "Por definir",
+    memberCount: data.memberCount ?? league.memberCount ?? 1,
+    adminName: data.adminName ?? league.adminName ?? "Admin",
+    scoringMode: data.scoringMode ?? league.scoringMode ?? "hybrid",
+    tournamentId: league.tournamentId,
+    adminId: league.adminId,
+    isFull,
   };
 }
 
@@ -123,6 +150,15 @@ export async function createLeague(
   if (draft.winners < 1 || draft.winners > 20) {
     throw new Error("El numero de ganadores debe estar entre 1 y 20.");
   }
+
+  const [premium, myLeagues] = await Promise.all([
+    hasPremium(admin.uid, TOURNAMENT_ID),
+    listMyLeagues(admin.uid),
+  ]);
+
+  const adminLeagueCount = countAdminLeagues(myLeagues, admin.uid, TOURNAMENT_ID);
+  assertCanCreateLeague(premium, adminLeagueCount);
+  await ensureTournamentUsageDoc(admin.uid, TOURNAMENT_ID);
 
   const leagueRef = doc(collection(db, "leagues"));
   const inviteCode = await createUniqueInviteCode();
@@ -174,6 +210,10 @@ export async function createLeague(
   batch.set(doc(db, "leagues", leagueRef.id, "members", admin.uid), memberData);
   batch.set(doc(db, "users", admin.uid, "leagueMemberships", leagueRef.id), membershipData);
   batch.set(doc(db, "inviteCodes", inviteCode), invitePreview);
+  batch.set(doc(db, "users", admin.uid, "tournamentUsage", TOURNAMENT_ID), {
+    tournamentId: TOURNAMENT_ID,
+    leaguesCreated: adminLeagueCount + 1,
+  });
   await batch.commit();
 
   return mapLeague(leagueRef.id, {
@@ -188,6 +228,13 @@ export async function joinLeague(
   user: { uid: string; displayName: string },
 ): Promise<LeagueRecord> {
   const preview = await getLeaguePreviewByCode(rawCode);
+  if (preview.isFull) {
+    throw new PlanLimitError(
+      "MEMBER_LIMIT",
+      "Esta liga ya alcanzo el limite de miembros del plan gratuito. Pide al administrador que actualice a Premium.",
+    );
+  }
+
   const membershipRef = doc(db, "users", user.uid, "leagueMemberships", preview.leagueId);
   const existingMembership = await getDoc(membershipRef);
 
@@ -202,6 +249,9 @@ export async function joinLeague(
   }
 
   const leagueData = leagueSnap.data() as LeagueDoc;
+  const adminPremium = await hasPremium(leagueData.adminId, leagueData.tournamentId);
+  assertCanAddMember(adminPremium, leagueData.memberCount);
+
   const now = serverTimestamp();
 
   const memberData: MemberDoc = {
