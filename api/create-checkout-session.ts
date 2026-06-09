@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { requireUser } from "./_lib/auth.js";
 import { getTournamentConfig } from "./_lib/tournaments.js";
 import { appBaseUrl, getStripe } from "./_lib/stripe.js";
+import { mapStripeError } from "./_lib/stripeErrors.js";
 
 type CheckoutBody = {
   tournamentId?: string;
@@ -60,6 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.error("create-checkout-session", error);
-    return res.status(500).json({ error: "No pudimos iniciar el pago." });
+    return res.status(500).json({
+      error: mapStripeError(error, "No pudimos iniciar el pago."),
+    });
   }
 }
