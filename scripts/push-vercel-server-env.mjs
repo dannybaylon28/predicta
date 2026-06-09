@@ -35,6 +35,10 @@ const entries = existsSync(envFile) ? parseEnv(readFileSync(envFile, "utf8")) : 
 if (existsSync(serviceAccountFile)) {
   const json = readFileSync(serviceAccountFile, "utf8").trim();
   entries.push(["FIREBASE_SERVICE_ACCOUNT_JSON", json]);
+  const projectId = JSON.parse(json).project_id;
+  if (projectId) {
+    entries.push(["FIREBASE_PROJECT_ID", projectId]);
+  }
 }
 
 if (entries.length === 0) {
