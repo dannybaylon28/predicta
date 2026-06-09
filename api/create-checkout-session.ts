@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "./_lib/auth";
-import { getTournamentConfig } from "./_lib/tournaments";
-import { appBaseUrl, getStripe } from "./_lib/stripe";
+import { requireUser } from "./_lib/auth.js";
+import { getTournamentConfig } from "./_lib/tournaments.js";
+import { appBaseUrl, getStripe } from "./_lib/stripe.js";
 
 type CheckoutBody = {
   tournamentId?: string;

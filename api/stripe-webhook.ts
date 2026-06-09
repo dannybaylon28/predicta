@@ -1,8 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { buffer } from "micro";
-import type Stripe from "stripe";
-import { grantEntitlement } from "./_lib/entitlements";
-import { getStripe } from "./_lib/stripe";
+import { grantEntitlement } from "./_lib/entitlements.js";
+import { getStripe } from "./_lib/stripe.js";
+
+type PaidCheckoutSession = {
+  id: string;
+  payment_status?: string;
+  metadata?: {
+    userId?: string;
+    tournamentId?: string;
+    currency?: string;
+  };
+};
 
 export const config = {
   api: {
@@ -31,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
 
     if (event.type === "checkout.session.completed") {
-      const session = event.data.object as Stripe.Checkout.Session;
+      const session = event.data.object as PaidCheckoutSession;
 
       if (session.payment_status === "paid" && session.metadata?.userId && session.metadata.tournamentId) {
         const currency = session.metadata.currency === "mxn" ? "mxn" : "usd";

@@ -1,5 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "./firebase-admin";
+import { adminDb } from "./firebase-admin.js";
 
 type GrantEntitlementInput = {
   userId: string;

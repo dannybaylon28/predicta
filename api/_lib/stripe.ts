@@ -1,8 +1,14 @@
 import Stripe from "stripe";
 
-let stripeClient: Stripe | null = null;
+let stripeClient: ReturnType<typeof createStripeClient> | null = null;
 
-export function getStripe(): Stripe {
+function createStripeClient(secret: string) {
+  return new Stripe(secret, {
+    apiVersion: "2026-05-27.dahlia",
+  });
+}
+
+export function getStripe() {
   if (stripeClient) return stripeClient;
 
   const secret = process.env.STRIPE_SECRET_KEY;
@@ -10,7 +16,7 @@ export function getStripe(): Stripe {
     throw new Error("STRIPE_SECRET_KEY no esta configurado.");
   }
 
-  stripeClient = new Stripe(secret);
+  stripeClient = createStripeClient(secret);
   return stripeClient;
 }
 

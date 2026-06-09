@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "./_lib/auth";
-import { grantEntitlement } from "./_lib/entitlements";
-import { getStripe } from "./_lib/stripe";
+import { requireUser } from "./_lib/auth.js";
+import { grantEntitlement } from "./_lib/entitlements.js";
+import { getStripe } from "./_lib/stripe.js";
 
 type VerifyBody = {
   sessionId?: string;

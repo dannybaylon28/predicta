@@ -1,5 +1,5 @@
 import type { VercelRequest } from "@vercel/node";
-import { adminAuth } from "./firebase-admin";
+import { adminAuth } from "./firebase-admin.js";
 
 export async function requireUser(req: VercelRequest): Promise<{ uid: string; email?: string }> {
   const header = req.headers.authorization;
