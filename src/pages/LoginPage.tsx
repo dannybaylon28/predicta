@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { GoogleSignInButton } from "../components/auth/GoogleSignInButton";
 import { PasswordField } from "../components/auth/PasswordField";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -199,14 +200,7 @@ export function LoginPage() {
               <span>o</span>
             </div>
 
-            <button
-              className="secondary-button full google-button"
-              type="button"
-              onClick={handleGoogle}
-              disabled={submitting}
-            >
-              Continuar con Google
-            </button>
+            <GoogleSignInButton onClick={handleGoogle} disabled={submitting} />
           </>
         )}
 

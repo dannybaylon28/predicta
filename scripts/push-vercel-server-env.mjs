@@ -45,11 +45,21 @@ if (entries.length === 0) {
   throw new Error("No hay variables en .env.server ni firebase-service-account.json");
 }
 
+const stripeSecret = entries.find(([key]) => key === "STRIPE_SECRET_KEY")?.[1] ?? "";
+const stripeLive = stripeSecret.startsWith("sk_live_");
+const stripeKeys = new Set(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+
+if (stripeLive) {
+  console.log("Modo Stripe LIVE detectado: claves de pago solo en production.\n");
+}
+
 for (const [key, value] of entries) {
   if (!value) {
     console.log(`⊘ ${key} vacio, omitido`);
     continue;
   }
+
+  const envTargets = stripeLive && stripeKeys.has(key) ? ["production"] : targets;
 
   const response = await fetch(
     `https://api.vercel.com/v10/projects/${project.id}/env?teamId=${project.orgId}&upsert=true`,
@@ -63,7 +73,7 @@ for (const [key, value] of entries) {
         key,
         value,
         type: "encrypted",
-        target: targets,
+        target: envTargets,
       }),
     },
   );
@@ -73,7 +83,7 @@ for (const [key, value] of entries) {
     throw new Error(`No se pudo guardar ${key}: ${response.status} ${error}`);
   }
 
-  console.log(`✓ ${key} → production, preview, development`);
+  console.log(`✓ ${key} → ${envTargets.join(", ")}`);
 }
 
 console.log("\nVariables de servidor exportadas a Vercel.");
