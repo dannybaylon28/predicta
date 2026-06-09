@@ -89,6 +89,11 @@ export function JoinLeaguePage() {
   const handleJoin = async () => {
     if (!preview) return;
 
+    if (!user) {
+      navigate("/entrar", { state: { from: `/unirse/${preview.code}` } });
+      return;
+    }
+
     setAlreadyMember(false);
     try {
       await joinLeagueByCode(preview.code);
@@ -116,6 +121,7 @@ export function JoinLeaguePage() {
         <h2>Unirme a una liga</h2>
         <p className="auth-copy">
           Pega el codigo que te compartio el admin o abre el link de invitacion directamente.
+          {!user && " Puedes ver la liga sin cuenta; para unirte necesitas iniciar sesion."}
         </p>
 
         <div className="join-code-row">
@@ -182,7 +188,11 @@ export function JoinLeaguePage() {
             onClick={handleJoin}
             disabled={!preview || joining || preview.isFull}
           >
-            {joining ? "Uniendote..." : `Unirme como ${displayName}`}
+            {joining
+              ? "Uniendote..."
+              : user
+                ? `Unirme como ${displayName}`
+                : "Iniciar sesion para unirme"}
             <ArrowRight size={18} />
           </button>
         </div>

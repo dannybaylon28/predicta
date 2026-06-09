@@ -33,22 +33,8 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      {
-        path: "unirse",
-        element: (
-          <ProtectedRoute>
-            <JoinLeaguePage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "unirse/:code",
-        element: (
-          <ProtectedRoute>
-            <JoinLeaguePage />
-          </ProtectedRoute>
-        ),
-      },
+      { path: "unirse", element: <JoinLeaguePage /> },
+      { path: "unirse/:code", element: <JoinLeaguePage /> },
       {
         path: "mis-ligas",
         element: (

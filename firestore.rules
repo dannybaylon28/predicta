@@ -111,7 +111,8 @@ service cloud.firestore {
     }
 
     match /inviteCodes/{code} {
-      allow read: if isSignedIn();
+      allow get: if true;
+      allow list: if isSignedIn();
       allow create: if isSignedIn();
       allow update: if isSignedIn() && isInvitePreviewCountUpdate();
       allow delete: if false;

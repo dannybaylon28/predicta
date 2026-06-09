@@ -7,7 +7,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "../firebase";
+import { auth, db } from "../firebase";
 import { PlanLimitError } from "../constants/plan";
 import type { LeagueDraft } from "../context/LeagueContext";
 import { ACTIVE_TOURNAMENT_ID } from "../constants/tournaments";
@@ -15,6 +15,7 @@ import type { LeagueRecord, ScoringMode } from "../types";
 import { generateInviteCode } from "../utils/inviteCode";
 import { normalizeInviteCode } from "../utils/inviteLink";
 import { mapFirestoreError } from "../utils/firestoreErrors";
+import { withTimeout } from "../utils/withTimeout";
 import { assertCanAddMember, assertCanCreateLeague } from "../utils/planLimits";
 import { countAdminLeagues, hasPremium } from "./entitlements";
 
@@ -59,6 +60,9 @@ type InviteCodeDoc = {
   memberCount: number;
   adminName: string;
   scoringMode: ScoringMode;
+  tournamentId?: string;
+  adminId?: string;
+  adminHasPremium?: boolean;
 };
 
 export type LeaguePreview = {
@@ -105,39 +109,76 @@ export async function getLeaguePreviewByCode(rawCode: string): Promise<LeaguePre
   const code = normalizeInviteCode(rawCode);
   if (!code) throw new Error("Ingresa un codigo de invitacion.");
 
-  const snap = await getDoc(doc(db, "inviteCodes", code));
+  let snap;
+  try {
+    snap = await withTimeout(
+      getDoc(doc(db, "inviteCodes", code)),
+      15000,
+      "La busqueda tardo demasiado. Revisa tu conexion e intenta de nuevo.",
+    );
+  } catch (error) {
+    throw mapFirestoreError(error, "No pudimos buscar la liga.");
+  }
+
   if (!snap.exists()) throw new Error("Codigo no valido. Verifica e intenta de nuevo.");
 
   const data = snap.data() as Partial<InviteCodeDoc>;
   if (!data.leagueId) throw new Error("Codigo no valido. Verifica e intenta de nuevo.");
 
-  const leagueSnap = await getDoc(doc(db, "leagues", data.leagueId));
-  if (!leagueSnap.exists()) throw new Error("La liga ya no existe.");
+  let tournamentId = data.tournamentId ?? TOURNAMENT_ID;
+  let adminId = data.adminId ?? "";
+  let memberCount = data.memberCount ?? 1;
+  let name = data.name ?? "Liga privada";
+  let prize = data.prize ?? "Por definir";
+  let adminName = data.adminName ?? "Admin";
+  let scoringMode = data.scoringMode ?? "hybrid";
+  let adminPremium = data.adminHasPremium ?? false;
 
-  const league = leagueSnap.data() as LeagueDoc;
-  const adminPremium = await hasPremium(league.adminId, league.tournamentId);
+  if ((!adminId || data.tournamentId === undefined) && auth.currentUser) {
+    try {
+      const leagueSnap = await getDoc(doc(db, "leagues", data.leagueId));
+      if (leagueSnap.exists()) {
+        const league = leagueSnap.data() as LeagueDoc;
+        tournamentId = league.tournamentId;
+        adminId = league.adminId;
+        memberCount = league.memberCount;
+        name = data.name ?? league.name;
+        prize = data.prize ?? league.prize;
+        adminName = data.adminName ?? league.adminName;
+        scoringMode = data.scoringMode ?? league.scoringMode;
+      }
+    } catch {
+      // Si falla la lectura de la liga, seguimos con los datos del codigo.
+    }
+  }
+
+  if (auth.currentUser && adminId) {
+    try {
+      adminPremium = await hasPremium(adminId, tournamentId);
+    } catch {
+      adminPremium = data.adminHasPremium ?? false;
+    }
+  }
 
   let isFull = false;
   try {
-    assertCanAddMember(adminPremium, league.memberCount);
+    assertCanAddMember(adminPremium, memberCount);
   } catch (err) {
     if (err instanceof PlanLimitError && err.code === "MEMBER_LIMIT") {
       isFull = true;
-    } else {
-      throw err;
     }
   }
 
   return {
     leagueId: data.leagueId,
     code,
-    name: data.name ?? league.name ?? "Liga privada",
-    prize: data.prize ?? league.prize ?? "Por definir",
-    memberCount: data.memberCount ?? league.memberCount ?? 1,
-    adminName: data.adminName ?? league.adminName ?? "Admin",
-    scoringMode: data.scoringMode ?? league.scoringMode ?? "hybrid",
-    tournamentId: league.tournamentId,
-    adminId: league.adminId,
+    name,
+    prize,
+    memberCount,
+    adminName,
+    scoringMode,
+    tournamentId,
+    adminId,
     isFull,
   };
 }
@@ -203,6 +244,9 @@ export async function createLeague(
     memberCount: 1,
     adminName: admin.displayName,
     scoringMode: draft.scoringMode,
+    tournamentId: TOURNAMENT_ID,
+    adminId: admin.uid,
+    adminHasPremium: premium,
   };
 
   const batch = writeBatch(db);
