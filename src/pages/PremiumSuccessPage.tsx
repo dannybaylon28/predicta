@@ -50,13 +50,35 @@ export function PremiumSuccessPage() {
   }
 
   if (status === "error") {
+    const retry = () => {
+      if (!sessionId) return;
+      setStatus("loading");
+      void verifyCheckoutSession(sessionId)
+        .then(async (active) => {
+          if (active) {
+            await refreshUsage();
+            setStatus("success");
+            return;
+          }
+          setStatus("error");
+        })
+        .catch(() => setStatus("error"));
+    };
+
     return (
       <section className="premium-page premium-success">
         <h1>No pudimos confirmar el pago</h1>
-        <p>Si ya pagaste, espera un minuto y recarga. Tambien puedes escribir a hola@predictaclub.com</p>
-        <Link className="secondary-button" to="/premium">
-          Volver a Premium
-        </Link>
+        <p>Si ya pagaste, espera un minuto y vuelve a intentar. Tambien puedes escribir a hola@predictaclub.com</p>
+        <div className="form-footer">
+          {sessionId && (
+            <button className="primary-button" type="button" onClick={retry}>
+              Reintentar confirmacion
+            </button>
+          )}
+          <Link className="secondary-button" to="/premium">
+            Volver a Premium
+          </Link>
+        </div>
       </section>
     );
   }

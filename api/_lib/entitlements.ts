@@ -1,5 +1,4 @@
-import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "./firebase-admin.js";
+import { upsertFirestoreDocument } from "./firestore-rest.js";
 
 type GrantEntitlementInput = {
   userId: string;
@@ -11,17 +10,13 @@ type GrantEntitlementInput = {
 
 export async function grantEntitlement(input: GrantEntitlementInput): Promise<void> {
   const { userId, tournamentId, currency, amount, stripeSessionId } = input;
-  const ref = adminDb().doc(`users/${userId}/entitlements/${tournamentId}`);
 
-  await ref.set(
-    {
-      tournamentId,
-      status: "active",
-      purchasedAt: FieldValue.serverTimestamp(),
-      currency,
-      amount,
-      stripeSessionId,
-    },
-    { merge: true },
-  );
+  await upsertFirestoreDocument(`users/${userId}/entitlements/${tournamentId}`, {
+    tournamentId: { stringValue: tournamentId },
+    status: { stringValue: "active" },
+    purchasedAt: { timestampValue: new Date().toISOString() },
+    currency: { stringValue: currency },
+    amount: { integerValue: String(amount) },
+    stripeSessionId: { stringValue: stripeSessionId },
+  });
 }
