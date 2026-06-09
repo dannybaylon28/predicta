@@ -10,7 +10,8 @@
     "sync:matches": "mkdir -p public/data && curl -fsSL https://worldcup26.ir/get/games -o public/data/worldcup-games.json && curl -fsSL https://worldcup26.ir/get/stadiums -o public/data/worldcup-stadiums.json",
     "test": "vitest run",
     "generate:icons": "node scripts/generate-icons.mjs",
-    "vercel:env": "node scripts/push-vercel-env.mjs"
+    "vercel:env": "node scripts/push-vercel-env.mjs",
+    "vercel:env:server": "node scripts/push-vercel-server-env.mjs"
   },
   "dependencies": {
     "@vercel/node": "^5.8.14",

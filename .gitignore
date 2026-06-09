@@ -2,6 +2,8 @@ node_modules
 dist
 .env
 .env.vercel
+.env.server
+firebase-service-account.json
 .DS_Store
 *.local
 tsconfig.tsbuildinfo
