@@ -99,7 +99,7 @@ service cloud.firestore {
       }
 
       match /entitlements/{tournamentId} {
-        allow read: if isOwner(userId);
+        allow read: if isSignedIn();
         allow write: if false;
       }
 
@@ -118,7 +118,8 @@ service cloud.firestore {
     }
 
     match /leagues/{leagueId} {
-      allow read: if isLeagueMember(leagueId);
+      allow get: if isSignedIn();
+      allow list: if isLeagueMember(leagueId);
       allow create: if isSignedIn()
         && request.resource.data.adminId == request.auth.uid
         && request.resource.data.memberCount == 1

@@ -279,7 +279,12 @@ export async function joinLeague(
   batch.set(membershipRef, membershipData);
   batch.update(leagueRef, { memberCount: increment(1), updatedAt: now });
   batch.update(doc(db, "inviteCodes", preview.code), { memberCount: increment(1) });
-  await batch.commit();
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    throw mapFirestoreError(error, "No pudimos unirte a la liga.");
+  }
 
   return mapLeague(preview.leagueId, {
     ...leagueData,
