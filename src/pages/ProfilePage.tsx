@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Crown, LoaderCircle, UserRound } from "lucide-react";
+import { ArrowRight, Check, Copy, Crown, LoaderCircle, UserRound } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../constants/plan";
 import { getTournament } from "../constants/tournaments";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import { usePremium } from "../hooks/usePremium";
 import { changePassword, usesPasswordProvider } from "../services/auth";
 import { detectBillingRegion, startPremiumCheckout } from "../services/billing";
@@ -16,6 +17,14 @@ import { updateUserDisplayName } from "../services/users";
 
 export function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
+
+  const handleCopyUid = () => {
+    if (user?.uid) {
+      void navigator.clipboard.writeText(user.uid);
+      showToast("ID de usuario copiado al portapapeles.");
+    }
+  };
   const {
     isPremium,
     loading: planLoading,
@@ -113,8 +122,15 @@ export function ProfilePage() {
           <UserRound size={28} />
         </div>
         <div>
-          <p className="overline">Mi cuenta</p>
-          <h1>Perfil</h1>
+          <div className="profile-title-row">
+            <p className="overline">Mi cuenta</p>
+            {user?.email && (
+              <span className="profile-header-user-tag">
+                @{user.email.split("@")[0]}
+              </span>
+            )}
+          </div>
+          <h1>{profile?.displayName || user?.displayName || "Perfil"}</h1>
           <p className="profile-subtitle">
             Administra tu informacion, seguridad y plan de Predicta.
           </p>
@@ -137,6 +153,20 @@ export function ProfilePage() {
             <label>
               Correo
               <input value={user?.email ?? ""} readOnly disabled />
+            </label>
+            <label>
+              ID de usuario
+              <div className="profile-uid-wrapper">
+                <input value={user?.uid ?? ""} readOnly disabled className="profile-uid-input" />
+                <button
+                  type="button"
+                  onClick={handleCopyUid}
+                  className="profile-uid-copy-btn"
+                  title="Copiar ID de usuario"
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
             </label>
             <p className="profile-meta">
               Inicio de sesion con <strong>{providerLabel}</strong>

@@ -8,7 +8,7 @@ export default defineConfig({
             "/api/worldcup": {
                 target: "https://worldcup26.ir",
                 changeOrigin: true,
-                rewrite: function (path) { return path.replace(/^\/api\/worldcup/, "/get"); },
+                rewrite: (path) => path.replace(/^\/api\/worldcup/, "/get"),
             },
         },
     },
