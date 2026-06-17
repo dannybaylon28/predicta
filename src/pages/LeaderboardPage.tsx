@@ -72,11 +72,13 @@ export function LeaderboardPage() {
                 {isExpanded && (
                   <div className="leader-member-details">
                     <h4>Detalle de puntos - {member.name}</h4>
-                    {finishedMatches.length === 0 ? (
-                      <p className="no-details">No hay partidos finalizados en el torneo.</p>
-                    ) : (
-                      <ul className="member-details-list">
-                        {finishedMatches.map((match) => {
+                    {(() => {
+                      if (finishedMatches.length === 0) {
+                        return <p className="no-details">No hay partidos finalizados en el torneo.</p>;
+                      }
+
+                      const scoredItems = finishedMatches
+                        .map((match) => {
                           const pred = predictions.find(
                             (p) => p.userId === member.id && p.matchId === match.id,
                           );
@@ -92,31 +94,42 @@ export function LeaderboardPage() {
                               )
                             : { points: 0, isExact: false, isResultCorrect: false };
 
-                          const pointsStyle = outcome.points > 0 ? "points-positive" : "points-zero";
-                          let hitLabel = "";
-                          if (outcome.isExact) hitLabel = "Exacto";
-                          else if (outcome.isResultCorrect) hitLabel = "Acierto";
+                          return { match, pred, outcome };
+                        })
+                        .filter((item) => item.outcome.points > 0);
 
-                          return (
-                            <li key={match.id} className="member-detail-item">
-                              <div className="detail-match-info">
-                                <strong>{match.home} vs {match.away}</strong>
-                                <span>(Resultado: {match.homeScore}-{match.awayScore})</span>
-                              </div>
-                              <div className="detail-pred-info">
-                                <span>
-                                  Pronóstico: {pred ? `${pred.homeScore}-${pred.awayScore}` : "Sin pronóstico"}
-                                </span>
-                                {hitLabel && (
-                                  <span className={`hit-badge ${hitLabel.toLowerCase()}`}>{hitLabel}</span>
-                                )}
-                                <strong className={pointsStyle}>+{outcome.points} pts</strong>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                      if (scoredItems.length === 0) {
+                        return <p className="no-details">No ha sumado puntos en ningún partido todavía.</p>;
+                      }
+
+                      return (
+                        <ul className="member-details-list">
+                          {scoredItems.map(({ match, pred, outcome }) => {
+                            let hitLabel = "";
+                            if (outcome.isExact) hitLabel = "Exacto";
+                            else if (outcome.isResultCorrect) hitLabel = "Acierto";
+
+                            return (
+                              <li key={match.id} className="member-detail-item">
+                                <div className="detail-match-info">
+                                  <strong>{match.home} vs {match.away}</strong>
+                                  <span>(Resultado: {match.homeScore}-{match.awayScore})</span>
+                                </div>
+                                <div className="detail-pred-info">
+                                  <span>
+                                    Pronóstico: {pred ? `${pred.homeScore}-${pred.awayScore}` : "Sin pronóstico"}
+                                  </span>
+                                  {hitLabel && (
+                                    <span className={`hit-badge ${hitLabel.toLowerCase()}`}>{hitLabel}</span>
+                                  )}
+                                  <strong className="points-positive">+{outcome.points} pts</strong>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
