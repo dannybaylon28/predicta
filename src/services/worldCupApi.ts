@@ -15,11 +15,32 @@ function remoteBaseUrl(): string {
   return "/api/worldcup";
 }
 
-function parseKickoff(localDate: string): Date {
+function getStadiumOffset(stadiumId: string): string {
+  const eastern = ["7", "8", "9", "10", "11", "12"];
+  const centralCDT = ["4", "5", "6"];
+  const centralCST = ["1", "2", "3"];
+  const western = ["13", "14", "15", "16"];
+
+  if (eastern.includes(stadiumId)) return "-04:00";
+  if (centralCDT.includes(stadiumId)) return "-05:00";
+  if (centralCST.includes(stadiumId)) return "-06:00";
+  if (western.includes(stadiumId)) return "-07:00";
+  return "-05:00"; // Fallback general (Central)
+}
+
+function parseKickoff(localDate: string, stadiumId: string): Date {
   const [datePart, timePart] = localDate.split(" ");
   const [month, day, year] = datePart.split("/").map(Number);
   const [hours, minutes] = timePart.split(":").map(Number);
-  return new Date(year, month - 1, day, hours, minutes);
+
+  const mm = String(month).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  const hh = String(hours).padStart(2, "0");
+  const min = String(minutes).padStart(2, "0");
+
+  const offset = getStadiumOffset(stadiumId);
+  const isoString = `${year}-${mm}-${dd}T${hh}:${min}:00${offset}`;
+  return new Date(isoString);
 }
 
 function formatDisplayDate(date: Date): string {
@@ -63,7 +84,7 @@ function mapGroupLabel(group: string, stage: MatchStage): string {
 }
 
 function mapGame(game: ApiGame, stadiums: Map<string, ApiStadium>): Match {
-  const kickoff = parseKickoff(game.local_date);
+  const kickoff = parseKickoff(game.local_date, game.stadium_id);
   const stadium = stadiums.get(game.stadium_id);
   const stage = mapStage(game.type);
   const status = mapStatus(game, kickoff);
