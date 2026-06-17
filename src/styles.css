@@ -2560,3 +2560,23 @@ a.user-chip:hover {
     grid-column: auto;
   }
 }
+
+.unsaved-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin: 1rem 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  background: rgba(234, 179, 8, 0.1);
+  color: #fef08a;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.unsaved-alert svg {
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+

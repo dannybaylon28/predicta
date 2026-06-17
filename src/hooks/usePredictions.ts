@@ -36,6 +36,10 @@ export function usePredictions(
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const cacheKey = useMemo(() => {
+    return leagueId && userId ? `predicta_draft_${userId}_${leagueId}` : null;
+  }, [leagueId, userId]);
+
   const load = useCallback(async () => {
     if (!leagueId || !userId) {
       setDraft({});
@@ -58,8 +62,27 @@ export function usePredictions(
       });
 
       const nextDraft = buildInitialDraft(openMatches, saved);
+
+      // Mezclar con el draft guardado en localStorage si existe para evitar perder cambios no guardados
+      let mergedDraft = { ...nextDraft };
+      if (cacheKey) {
+        const cachedStr = localStorage.getItem(cacheKey);
+        if (cachedStr) {
+          try {
+            const cached = JSON.parse(cachedStr) as ScoreDraft;
+            Object.keys(cached).forEach((matchId) => {
+              if (cached[matchId] && mergedDraft[matchId]) {
+                mergedDraft[matchId] = cached[matchId];
+              }
+            });
+          } catch (e) {
+            console.warn("Error al restaurar el borrador local:", e);
+          }
+        }
+      }
+
       setSavedSnapshot(nextDraft);
-      setDraft(nextDraft);
+      setDraft(mergedDraft);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos cargar tus predicciones.");
       setDraft(buildInitialDraft(openMatches, {}));
@@ -67,11 +90,34 @@ export function usePredictions(
     } finally {
       setLoading(false);
     }
-  }, [leagueId, openMatches, userId]);
+  }, [leagueId, openMatches, userId, cacheKey]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Guardar el borrador en localStorage de manera automatica conforme cambia
+  useEffect(() => {
+    if (!cacheKey || loading || saving) return;
+
+    const changed: ScoreDraft = {};
+    let hasDraftChanges = false;
+
+    openMatches.forEach((match) => {
+      const current = draft[match.id];
+      const saved = savedSnapshot[match.id];
+      if (current && saved && (current.homeScore !== saved.homeScore || current.awayScore !== saved.awayScore)) {
+        changed[match.id] = current;
+        hasDraftChanges = true;
+      }
+    });
+
+    if (hasDraftChanges) {
+      localStorage.setItem(cacheKey, JSON.stringify(changed));
+    } else {
+      localStorage.removeItem(cacheKey);
+    }
+  }, [draft, savedSnapshot, openMatches, cacheKey, loading, saving]);
 
   const updateScore = useCallback((matchId: string, side: "homeScore" | "awayScore", value: number) => {
     setDraft((current) => ({
@@ -128,13 +174,16 @@ export function usePredictions(
         });
         return next;
       });
+      if (cacheKey) {
+        localStorage.removeItem(cacheKey);
+      }
       setSuccess(`Guardamos ${savedCount} prediccion${savedCount === 1 ? "" : "es"}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos guardar tus predicciones.");
     } finally {
       setSaving(false);
     }
-  }, [changedMatchIds, draft, hasChanges, leagueId, matchesById, userId]);
+  }, [changedMatchIds, draft, hasChanges, leagueId, matchesById, userId, cacheKey]);
 
   return {
     openMatches,

@@ -94,6 +94,8 @@ function useLocalMatchesInDev(): boolean {
 }
 
 async function fetchJsonWithFallback<T>(remotePath: string, localPath: string): Promise<T> {
+  const cacheKey = `worldcup_cache_${remotePath.replace(/\//g, "_")}`;
+
   if (useLocalMatchesInDev()) {
     const fallback = await fetch(localPath);
     if (!fallback.ok) {
@@ -104,14 +106,50 @@ async function fetchJsonWithFallback<T>(remotePath: string, localPath: string): 
     return (await fallback.json()) as T;
   }
 
-  const response = await fetch(`${remoteBaseUrl()}${remotePath}`);
-  if (!response.ok) {
-    throw new Error(
-      `No pudimos cargar el calendario del Mundial (HTTP ${response.status}). Intenta de nuevo en unos minutos.`,
-    );
+  // Intenta obtener los datos frescos de la API remota
+  try {
+    const response = await fetch(`${remoteBaseUrl()}${remotePath}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch (e) {
+          console.warn("No se pudo guardar en la cache local de localStorage:", e);
+        }
+      }
+      return data as T;
+    }
+    console.warn(`La API remota devolvio un estado de error ${response.status} para ${remotePath}. Intentando usar cache o fallback local.`);
+  } catch (error) {
+    console.warn(`Fallo la conexion con la API remota para ${remotePath}. Intentando usar cache o fallback local.`, error);
   }
 
-  return (await response.json()) as T;
+  // Primer Fallback: Intentar obtener la version cacheada previamente en localStorage
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        return JSON.parse(cached) as T;
+      } catch (e) {
+        console.warn("Error al deserializar la cache de localStorage:", e);
+      }
+    }
+  }
+
+  // Segundo Fallback: Intentar obtener el archivo local (estatico) de respaldo
+  try {
+    const fallback = await fetch(localPath);
+    if (fallback.ok) {
+      return (await fallback.json()) as T;
+    }
+  } catch (error) {
+    console.error(`Fallo tambien el fallback local para ${localPath}:`, error);
+  }
+
+  throw new Error(
+    "No pudimos cargar el calendario del Mundial. Revisa tu conexion e intenta de nuevo.",
+  );
 }
 
 async function fetchStadiumMap(): Promise<Map<string, ApiStadium>> {

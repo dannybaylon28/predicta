@@ -1,4 +1,4 @@
-import { Save } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MatchStatusBadge } from "../components/match/MatchStatusBadge";
 import { PredictionListSkeleton } from "../components/ui/Skeleton";
@@ -213,8 +213,16 @@ export function PredictionsPage() {
         {view === "open"
           ? "Elige la jornada que quieres pronosticar. Solo se guardan los partidos que modifiques."
           : "Resultados oficiales y predicciones de todos los miembros de la liga."}
-        {view === "open" && hasChanges && !saving ? " Tienes cambios sin guardar." : ""}
       </p>
+
+      {view === "open" && hasChanges && !saving && (
+        <div className="unsaved-alert" role="alert">
+          <AlertTriangle size={20} />
+          <span>
+            <strong>Tienes cambios sin guardar en tu borrador.</strong> Haz clic en el botón <strong>{saveLabel}</strong> de arriba para guardarlos definitivamente.
+          </span>
+        </div>
+      )}
 
       {matchesError && <p className="auth-error">{matchesError}</p>}
       {view === "finished" && closedError && <p className="auth-error">{closedError}</p>}
