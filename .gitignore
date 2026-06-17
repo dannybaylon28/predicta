@@ -8,3 +8,4 @@ firebase-service-account.json
 *.local
 tsconfig.tsbuildinfo
 .vercel
+
