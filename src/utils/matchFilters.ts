@@ -65,6 +65,10 @@ function matchdayLabel(matchday: string, stage: MatchStage): string {
   return MATCHDAY_LABELS[matchday] ?? STAGE_LABELS[stage] ?? `Jornada ${matchday}`;
 }
 
+export function buildLeaderboardMatchdayTabs(matches: Match[]): MatchdayOption[] {
+  return buildMatchdayOptions(matches).filter((option) => option.key !== ALL_MATCHDAYS_KEY);
+}
+
 export function buildMatchdayOptions(matches: Match[]): MatchdayOption[] {
   const sorted = sortMatchesByKickoff(matches);
   const groups = new Map<string, Match[]>();

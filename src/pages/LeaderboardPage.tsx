@@ -1,15 +1,38 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Crown } from "lucide-react";
 import { LeaderboardSkeleton } from "../components/ui/Skeleton";
 import { useLeague } from "../context/LeagueContext";
+import { useMatches } from "../context/MatchesContext";
 import { useLeaderboard } from "../hooks/useLeaderboard";
 import { scoringLabels } from "../constants/scoring";
+import { computeLeaderboard } from "../services/leaderboard";
 import { calculateMatchPoints } from "../utils/scoring";
+import { buildLeaderboardMatchdayTabs } from "../utils/matchFilters";
+
+const GENERAL_TAB = "general";
 
 export function LeaderboardPage() {
   const { selectedLeague } = useLeague();
-  const { entries, predictions, finishedMatches, finishedMatchCount, loading, error } = useLeaderboard(selectedLeague);
+  const { matches } = useMatches();
+  const { entries, members, predictions, finishedMatches, finishedMatchCount, loading, error } =
+    useLeaderboard(selectedLeague);
+  const [selectedTab, setSelectedTab] = useState(GENERAL_TAB);
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+
+  const matchdayTabs = useMemo(() => buildLeaderboardMatchdayTabs(matches), [matches]);
+
+  const scopedFinishedMatches = useMemo(() => {
+    if (selectedTab === GENERAL_TAB) return finishedMatches;
+    return finishedMatches.filter((match) => match.matchday === selectedTab);
+  }, [finishedMatches, selectedTab]);
+
+  const displayedEntries = useMemo(() => {
+    if (!selectedLeague) return [];
+    if (selectedTab === GENERAL_TAB) return entries;
+    return computeLeaderboard(selectedLeague, members, predictions, scopedFinishedMatches);
+  }, [entries, members, predictions, scopedFinishedMatches, selectedLeague, selectedTab]);
+
+  const selectedMatchday = matchdayTabs.find((option) => option.key === selectedTab);
 
   if (!selectedLeague) {
     return (
@@ -36,17 +59,59 @@ export function LeaderboardPage() {
       {loading && <LeaderboardSkeleton count={4} />}
       {error && <p className="auth-error">{error}</p>}
 
+      {!loading && !error && matchdayTabs.length > 0 && (
+        <div className="matchday-filters" role="tablist" aria-label="Clasificacion por jornada">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedTab === GENERAL_TAB}
+            className={`matchday-chip${selectedTab === GENERAL_TAB ? " active" : ""}`}
+            onClick={() => {
+              setSelectedTab(GENERAL_TAB);
+              setExpandedMemberId(null);
+            }}
+          >
+            <span>General</span>
+            <small>Totales</small>
+          </button>
+          {matchdayTabs.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              role="tab"
+              aria-selected={selectedTab === option.key}
+              className={`matchday-chip${selectedTab === option.key ? " active" : ""}`}
+              onClick={() => {
+                setSelectedTab(option.key);
+                setExpandedMemberId(null);
+              }}
+            >
+              <span>{option.label}</span>
+              <small>{option.dateLabel}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
       {!loading && !error && (
-        <p className="page-copy">
-          {finishedMatchCount === 0
-            ? "Aun no hay partidos finalizados. La tabla se actualizara cuando la API publique resultados."
-            : `Basado en ${finishedMatchCount} partido${finishedMatchCount === 1 ? "" : "s"} finalizado${finishedMatchCount === 1 ? "" : "s"}.`}
+        <p className="predictions-scope">
+          {selectedTab === GENERAL_TAB ? (
+            finishedMatchCount === 0 ? (
+              "Aun no hay partidos finalizados."
+            ) : (
+              `Clasificacion general · ${finishedMatchCount} partido${finishedMatchCount === 1 ? "" : "s"} finalizado${finishedMatchCount === 1 ? "" : "s"}`
+            )
+          ) : scopedFinishedMatches.length === 0 ? (
+            `Aun no hay partidos finalizados en ${selectedMatchday?.label ?? "esta jornada"}.`
+          ) : (
+            `${selectedMatchday?.label ?? "Jornada"} · ${scopedFinishedMatches.length} partido${scopedFinishedMatches.length === 1 ? "" : "s"} finalizado${scopedFinishedMatches.length === 1 ? "" : "s"}`
+          )}
         </p>
       )}
 
-      {!loading && !error && entries.length > 0 && (
+      {!loading && !error && displayedEntries.length > 0 && (
         <div className="leaderboard">
-          {entries.map((member, index) => {
+          {displayedEntries.map((member, index) => {
             const inPrizeZone = index < selectedLeague.winners;
             const isExpanded = expandedMemberId === member.id;
             const toggleExpand = () => setExpandedMemberId(isExpanded ? null : member.id);
@@ -73,11 +138,17 @@ export function LeaderboardPage() {
                   <div className="leader-member-details">
                     <h4>Detalle de puntos - {member.name}</h4>
                     {(() => {
-                      if (finishedMatches.length === 0) {
-                        return <p className="no-details">No hay partidos finalizados en el torneo.</p>;
+                      if (scopedFinishedMatches.length === 0) {
+                        return (
+                          <p className="no-details">
+                            {selectedTab === GENERAL_TAB
+                              ? "No hay partidos finalizados en el torneo."
+                              : "No hay partidos finalizados en esta jornada."}
+                          </p>
+                        );
                       }
 
-                      const scoredItems = finishedMatches
+                      const scoredItems = scopedFinishedMatches
                         .map((match) => {
                           const pred = predictions.find(
                             (p) => p.userId === member.id && p.matchId === match.id,
@@ -99,7 +170,13 @@ export function LeaderboardPage() {
                         .filter((item) => item.outcome.points > 0);
 
                       if (scoredItems.length === 0) {
-                        return <p className="no-details">No ha sumado puntos en ningún partido todavía.</p>;
+                        return (
+                          <p className="no-details">
+                            {selectedTab === GENERAL_TAB
+                              ? "No ha sumado puntos en ningún partido todavía."
+                              : "No sumó puntos en esta jornada."}
+                          </p>
+                        );
                       }
 
                       return (
@@ -112,15 +189,22 @@ export function LeaderboardPage() {
                             return (
                               <li key={match.id} className="member-detail-item">
                                 <div className="detail-match-info">
-                                  <strong>{match.home} vs {match.away}</strong>
-                                  <span>(Resultado: {match.homeScore}-{match.awayScore})</span>
+                                  <strong>
+                                    {match.home} vs {match.away}
+                                  </strong>
+                                  <span>
+                                    (Resultado: {match.homeScore}-{match.awayScore})
+                                  </span>
                                 </div>
                                 <div className="detail-pred-info">
                                   <span>
-                                    Pronóstico: {pred ? `${pred.homeScore}-${pred.awayScore}` : "Sin pronóstico"}
+                                    Pronóstico:{" "}
+                                    {pred ? `${pred.homeScore}-${pred.awayScore}` : "Sin pronóstico"}
                                   </span>
                                   {hitLabel && (
-                                    <span className={`hit-badge ${hitLabel.toLowerCase()}`}>{hitLabel}</span>
+                                    <span className={`hit-badge ${hitLabel.toLowerCase()}`}>
+                                      {hitLabel}
+                                    </span>
                                   )}
                                   <strong className="points-positive">+{outcome.points} pts</strong>
                                 </div>
@@ -138,7 +222,17 @@ export function LeaderboardPage() {
         </div>
       )}
 
-      {!loading && !error && entries.length === 0 && (
+      {!loading && !error && displayedEntries.length === 0 && members.length > 0 && (
+        <p className="page-copy">
+          {selectedTab === GENERAL_TAB
+            ? finishedMatchCount === 0
+              ? "La tabla se actualizara cuando la API publique resultados."
+              : "Todos los miembros tienen 0 puntos por ahora."
+            : "Nadie ha sumado puntos en esta jornada todavía."}
+        </p>
+      )}
+
+      {!loading && !error && members.length === 0 && (
         <p className="page-copy">Esta liga aun no tiene miembros registrados.</p>
       )}
     </section>
