@@ -1,5 +1,7 @@
 import type { Match, MatchStage } from "../types";
-import { sortMatchesByKickoff } from "./matchStatus";
+import { sortMatchesByKickoff, sortMatchesByKickoffDesc } from "./matchStatus";
+
+export type MatchSortOrder = "asc" | "desc";
 
 export const ALL_MATCHDAYS_KEY = "all";
 
@@ -113,16 +115,25 @@ export function getDefaultMatchdayKey(matches: Match[], now = Date.now()): strin
   return nearest?.matchday ?? ALL_MATCHDAYS_KEY;
 }
 
-export function filterMatchesByMatchday(matches: Match[], matchdayKey: string): Match[] {
-  if (matchdayKey === ALL_MATCHDAYS_KEY) {
-    return sortMatchesByKickoff(matches);
-  }
+export function filterMatchesByMatchday(
+  matches: Match[],
+  matchdayKey: string,
+  order: MatchSortOrder = "asc",
+): Match[] {
+  const filtered =
+    matchdayKey === ALL_MATCHDAYS_KEY
+      ? matches
+      : matches.filter((match) => match.matchday === matchdayKey);
 
-  return sortMatchesByKickoff(matches.filter((match) => match.matchday === matchdayKey));
+  return order === "desc" ? sortMatchesByKickoffDesc(filtered) : sortMatchesByKickoff(filtered);
 }
 
-export function groupMatchesByCalendarDay(matches: Match[]): MatchDayGroup[] {
-  const sorted = sortMatchesByKickoff(matches);
+export function groupMatchesByCalendarDay(
+  matches: Match[],
+  order: MatchSortOrder = "asc",
+): MatchDayGroup[] {
+  const sorted =
+    order === "desc" ? sortMatchesByKickoffDesc(matches) : sortMatchesByKickoff(matches);
   const groups = new Map<string, Match[]>();
 
   sorted.forEach((match) => {

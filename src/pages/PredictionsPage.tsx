@@ -1,5 +1,6 @@
 import { Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FinishedMatchCard } from "../components/predictions/FinishedMatchCard";
 import { MatchStatusBadge } from "../components/match/MatchStatusBadge";
 import { PredictionListSkeleton } from "../components/ui/Skeleton";
 import { useAuth } from "../context/AuthContext";
@@ -56,6 +57,7 @@ export function PredictionsPage() {
   const [picksByMatch, setPicksByMatch] = useState<Record<string, LeaguePick[]>>({});
   const [loadingClosed, setLoadingClosed] = useState(false);
   const [closedError, setClosedError] = useState("");
+  const [expandedFinishedMatchId, setExpandedFinishedMatchId] = useState<string | null>(null);
 
   const activeMatches =
     view === "open" ? openMatches : view === "live" ? liveMatches : finishedMatches;
@@ -124,7 +126,12 @@ export function PredictionsPage() {
 
   useEffect(() => {
     userPickedMatchdayRef.current = false;
+    setExpandedFinishedMatchId(null);
   }, [view]);
+
+  useEffect(() => {
+    setExpandedFinishedMatchId(null);
+  }, [selectedMatchday]);
 
   useEffect(() => {
     if (activeMatches.length === 0) {
@@ -150,10 +157,13 @@ export function PredictionsPage() {
 
   const visibleMatches = useMemo(() => {
     if (!selectedMatchday) return [];
-    return filterMatchesByMatchday(activeMatches, selectedMatchday);
+    return filterMatchesByMatchday(activeMatches, selectedMatchday, "desc");
   }, [activeMatches, selectedMatchday]);
 
-  const dayGroups = useMemo(() => groupMatchesByCalendarDay(visibleMatches), [visibleMatches]);
+  const dayGroups = useMemo(
+    () => groupMatchesByCalendarDay(visibleMatches, "desc"),
+    [visibleMatches],
+  );
   const selectedOption = matchdayOptions.find((option) => option.key === selectedMatchday);
 
   if (!selectedLeague) {
@@ -230,7 +240,7 @@ export function PredictionsPage() {
           ? "Elige la jornada que quieres pronosticar. Solo se guardan los partidos que modifiques."
           : view === "live"
             ? "Partidos en juego. Aqui puedes revisar el marcador que enviaste mientras el partido sigue."
-            : "Resultados oficiales y predicciones de todos los miembros de la liga."}
+            : "Resultados oficiales y predicciones de la liga. Toca un partido para ver los pronosticos."}
       </p>
 
       {matchesError && <p className="auth-error">{matchesError}</p>}
@@ -289,45 +299,19 @@ export function PredictionsPage() {
               {dayGroup.matches.map((match) => {
                 if (view === "finished") {
                   const picks = picksByMatch[match.id] ?? [];
+                  const isExpanded = expandedFinishedMatchId === match.id;
 
                   return (
-                    <article className="prediction-row finished" key={match.id}>
-                      <div className="match-meta">
-                        <strong>{match.group}</strong>
-                        <span>
-                          {match.date} - {match.venue}
-                        </span>
-                      </div>
-                      <div className="teams">
-                        <span>{match.home}</span>
-                        <div className="score-final">
-                          <strong>{match.homeScore}</strong>
-                          <span>-</span>
-                          <strong>{match.awayScore}</strong>
-                        </div>
-                        <span>{match.away}</span>
-                      </div>
-                      <div className="prediction-summary">
-                        <MatchStatusBadge match={match} />
-                        <ul className="league-picks">
-                          {picks.length === 0 ? (
-                            <li className="league-pick empty">Nadie pronostico este partido</li>
-                          ) : (
-                            picks.map((pick) => (
-                              <li
-                                className={`league-pick${pick.userId === user?.uid ? " own" : ""}`}
-                                key={pick.userId}
-                              >
-                                <span>{pick.name}</span>
-                                <strong>
-                                  {pick.homeScore}-{pick.awayScore}
-                                </strong>
-                              </li>
-                            ))
-                          )}
-                        </ul>
-                      </div>
-                    </article>
+                    <FinishedMatchCard
+                      key={match.id}
+                      match={match}
+                      picks={picks}
+                      currentUserId={user?.uid}
+                      expanded={isExpanded}
+                      onToggle={() =>
+                        setExpandedFinishedMatchId(isExpanded ? null : match.id)
+                      }
+                    />
                   );
                 }
 

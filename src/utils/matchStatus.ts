@@ -10,6 +10,12 @@ export function sortMatchesByKickoff(matches: Match[]): Match[] {
   );
 }
 
+export function sortMatchesByKickoffDesc(matches: Match[]): Match[] {
+  return [...matches].sort(
+    (a, b) => new Date(b.kickoffAt).getTime() - new Date(a.kickoffAt).getTime(),
+  );
+}
+
 export function getOpenMatches(matches: Match[]): Match[] {
   return sortMatchesByKickoff(matches.filter(isMatchOpen));
 }
