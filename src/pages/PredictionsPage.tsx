@@ -155,14 +155,16 @@ export function PredictionsPage() {
     });
   }, [activeMatches]);
 
+  const matchSortOrder = view === "finished" ? "desc" : "asc";
+
   const visibleMatches = useMemo(() => {
     if (!selectedMatchday) return [];
-    return filterMatchesByMatchday(activeMatches, selectedMatchday, "desc");
-  }, [activeMatches, selectedMatchday]);
+    return filterMatchesByMatchday(activeMatches, selectedMatchday, matchSortOrder);
+  }, [activeMatches, matchSortOrder, selectedMatchday]);
 
   const dayGroups = useMemo(
-    () => groupMatchesByCalendarDay(visibleMatches, "desc"),
-    [visibleMatches],
+    () => groupMatchesByCalendarDay(visibleMatches, matchSortOrder),
+    [matchSortOrder, visibleMatches],
   );
   const selectedOption = matchdayOptions.find((option) => option.key === selectedMatchday);
 
