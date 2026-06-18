@@ -1,4 +1,4 @@
-import { AlertTriangle, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MatchStatusBadge } from "../components/match/MatchStatusBadge";
 import { PredictionListSkeleton } from "../components/ui/Skeleton";
@@ -45,7 +45,7 @@ export function PredictionsPage() {
     success,
     hasChanges,
     pendingChangeCount,
-    partialChangeCount,
+    pendingChangeByMatchId,
     updateScore,
     saveAll,
   } = usePredictions(selectedLeague?.id ?? null, user?.uid, matches);
@@ -233,27 +233,6 @@ export function PredictionsPage() {
             : "Resultados oficiales y predicciones de todos los miembros de la liga."}
       </p>
 
-      {view === "open" && partialChangeCount > 0 && !saving && (
-        <div className="unsaved-alert" role="alert">
-          <AlertTriangle size={20} />
-          <span>
-            <strong>
-              {partialChangeCount} partido{partialChangeCount === 1 ? "" : "s"} con marcador incompleto.
-            </strong>{" "}
-            Completa ambos lados o borra los dos campos antes de guardar.
-          </span>
-        </div>
-      )}
-
-      {view === "open" && hasChanges && !saving && (
-        <div className="unsaved-alert" role="alert">
-          <AlertTriangle size={20} />
-          <span>
-            <strong>Tienes cambios sin guardar en tu borrador.</strong> Haz clic en el botón <strong>{saveLabel}</strong> de arriba para guardarlos definitivamente.
-          </span>
-        </div>
-      )}
-
       {matchesError && <p className="auth-error">{matchesError}</p>}
       {view === "finished" && closedError && <p className="auth-error">{closedError}</p>}
 
@@ -397,9 +376,17 @@ export function PredictionsPage() {
                 }
 
                 const scores = draft[match.id] ?? { homeScore: null, awayScore: null };
+                const changeType = pendingChangeByMatchId.get(match.id);
+                const rowClassName = [
+                  "prediction-row",
+                  changeType === "save" || changeType === "delete" ? "prediction-row--unsaved" : "",
+                  changeType === "partial" ? "prediction-row--partial" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
                 return (
-                  <article className="prediction-row" key={match.id}>
+                  <article className={rowClassName} key={match.id}>
                     <div className="match-meta">
                       <strong>{match.group}</strong>
                       <span>
@@ -423,7 +410,15 @@ export function PredictionsPage() {
                       </div>
                       <span>{match.away}</span>
                     </div>
-                    <MatchStatusBadge match={match} />
+                    <div className="prediction-row-actions">
+                      <MatchStatusBadge match={match} />
+                      {changeType === "save" || changeType === "delete" ? (
+                        <span className="prediction-draft-hint">Sin guardar</span>
+                      ) : null}
+                      {changeType === "partial" ? (
+                        <span className="prediction-draft-hint partial">Marcador incompleto</span>
+                      ) : null}
+                    </div>
                   </article>
                 );
               })}

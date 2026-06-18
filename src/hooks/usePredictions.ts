@@ -206,6 +206,14 @@ export function usePredictions(
     [pendingChanges],
   );
 
+  const pendingChangeByMatchId = useMemo(() => {
+    const map = new Map<string, PendingChange["type"]>();
+    pendingChanges.forEach((change) => {
+      map.set(change.matchId, change.type);
+    });
+    return map;
+  }, [pendingChanges]);
+
   const partialChangeCount = pendingChanges.filter((change) => change.type === "partial").length;
   const hasChanges = actionableChanges.length > 0;
   const pendingChangeCount = actionableChanges.length;
@@ -324,6 +332,7 @@ export function usePredictions(
     hasChanges,
     pendingChangeCount,
     partialChangeCount,
+    pendingChangeByMatchId,
     updateScore,
     saveAll,
     reload: load,
