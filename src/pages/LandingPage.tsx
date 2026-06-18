@@ -1,10 +1,12 @@
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MatchRowsSkeleton } from "../components/ui/Skeleton";
+import { useAuth } from "../context/AuthContext";
 import { useMatches } from "../context/MatchesContext";
 import { getFinishedMatches } from "../utils/matchStatus";
 
 export function LandingPage() {
+  const { user, loading: authLoading } = useAuth();
   const { openMatches, matches, loading, error } = useMatches();
   const previewMatches = openMatches.slice(0, 3);
   const finishedCount = getFinishedMatches(matches).length;
@@ -26,9 +28,16 @@ export function LandingPage() {
             Crear mi liga
             <ArrowRight size={19} />
           </Link>
-          <Link className="secondary-button" to="/entrar">
-            Iniciar sesion
-          </Link>
+          {!authLoading && !user && (
+            <Link className="secondary-button" to="/entrar">
+              Iniciar sesion
+            </Link>
+          )}
+          {!authLoading && user && (
+            <Link className="secondary-button" to="/mis-ligas">
+              Mis ligas
+            </Link>
+          )}
         </div>
         <div className="landing-steps">
           <div>

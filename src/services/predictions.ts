@@ -19,6 +19,19 @@ export type PredictionDraft = {
   awayScore: number;
 };
 
+export type ScorePair = {
+  homeScore: number | null;
+  awayScore: number | null;
+};
+
+export function isCompleteScorePair(scores: ScorePair): scores is { homeScore: number; awayScore: number } {
+  return scores.homeScore !== null && scores.awayScore !== null;
+}
+
+export function isEmptyScorePair(scores: ScorePair): boolean {
+  return scores.homeScore === null && scores.awayScore === null;
+}
+
 export function predictionDocId(userId: string, matchId: string): string {
   return `${userId}_${matchId}`;
 }
@@ -145,4 +158,23 @@ export async function saveUserPredictions(
 
   await batch.commit();
   return savedCount;
+}
+
+export async function deleteUserPredictions(
+  leagueId: string,
+  userId: string,
+  matchIds: string[],
+): Promise<number> {
+  if (matchIds.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  let deletedCount = 0;
+
+  matchIds.forEach((matchId) => {
+    batch.delete(doc(db, "leagues", leagueId, "predictions", predictionDocId(userId, matchId)));
+    deletedCount += 1;
+  });
+
+  await batch.commit();
+  return deletedCount;
 }

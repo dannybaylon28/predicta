@@ -17,10 +17,11 @@ import {
   getDefaultMatchdayKey,
   groupMatchesByCalendarDay,
 } from "../utils/matchFilters";
-import { getFinishedMatches } from "../utils/matchStatus";
-import { parseGoalsInput } from "../utils/scores";
+import { getFinishedMatches, getLiveMatches } from "../utils/matchStatus";
+import { ScoreInput } from "../components/predictions/ScoreInput";
+import { isCompleteScorePair } from "../services/predictions";
 
-type PredictionsView = "open" | "finished";
+type PredictionsView = "open" | "live" | "finished";
 
 type LeaguePick = {
   userId: string;
@@ -37,23 +38,27 @@ export function PredictionsPage() {
   const {
     openMatches,
     draft,
+    savedPredictions,
     loading: predictionsLoading,
     saving,
     error,
     success,
     hasChanges,
     pendingChangeCount,
+    partialChangeCount,
     updateScore,
     saveAll,
   } = usePredictions(selectedLeague?.id ?? null, user?.uid, matches);
 
   const finishedMatches = useMemo(() => getFinishedMatches(matches), [matches]);
+  const liveMatches = useMemo(() => getLiveMatches(matches), [matches]);
   const [view, setView] = useState<PredictionsView>("open");
   const [picksByMatch, setPicksByMatch] = useState<Record<string, LeaguePick[]>>({});
   const [loadingClosed, setLoadingClosed] = useState(false);
   const [closedError, setClosedError] = useState("");
 
-  const activeMatches = view === "open" ? openMatches : finishedMatches;
+  const activeMatches =
+    view === "open" ? openMatches : view === "live" ? liveMatches : finishedMatches;
   const matchdayOptions = useMemo(() => buildMatchdayOptions(activeMatches), [activeMatches]);
   const [selectedMatchday, setSelectedMatchday] = useState<string | null>(null);
   const userPickedMatchdayRef = useRef(false);
@@ -160,7 +165,8 @@ export function PredictionsPage() {
   }
 
   const loading =
-    matchesLoading || (view === "open" ? predictionsLoading : loadingClosed);
+    matchesLoading ||
+    (view === "open" || view === "live" ? predictionsLoading : loadingClosed);
   const saveLabel =
     pendingChangeCount > 0
       ? `Guardar cambios (${pendingChangeCount})`
@@ -200,6 +206,16 @@ export function PredictionsPage() {
         <button
           type="button"
           role="tab"
+          aria-selected={view === "live"}
+          className={`predictions-view-tab${view === "live" ? " active" : ""}`}
+          onClick={() => setView("live")}
+        >
+          En curso
+          <small>{liveMatches.length}</small>
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={view === "finished"}
           className={`predictions-view-tab${view === "finished" ? " active" : ""}`}
           onClick={() => setView("finished")}
@@ -212,8 +228,22 @@ export function PredictionsPage() {
       <p className="page-copy">
         {view === "open"
           ? "Elige la jornada que quieres pronosticar. Solo se guardan los partidos que modifiques."
-          : "Resultados oficiales y predicciones de todos los miembros de la liga."}
+          : view === "live"
+            ? "Partidos en juego. Aqui puedes revisar el marcador que enviaste mientras el partido sigue."
+            : "Resultados oficiales y predicciones de todos los miembros de la liga."}
       </p>
+
+      {view === "open" && partialChangeCount > 0 && !saving && (
+        <div className="unsaved-alert" role="alert">
+          <AlertTriangle size={20} />
+          <span>
+            <strong>
+              {partialChangeCount} partido{partialChangeCount === 1 ? "" : "s"} con marcador incompleto.
+            </strong>{" "}
+            Completa ambos lados o borra los dos campos antes de guardar.
+          </span>
+        </div>
+      )}
 
       {view === "open" && hasChanges && !saving && (
         <div className="unsaved-alert" role="alert">
@@ -227,13 +257,15 @@ export function PredictionsPage() {
       {matchesError && <p className="auth-error">{matchesError}</p>}
       {view === "finished" && closedError && <p className="auth-error">{closedError}</p>}
 
-      {loading && <PredictionListSkeleton count={view === "open" ? 5 : 3} />}
+      {loading && <PredictionListSkeleton count={view === "finished" ? 3 : 5} />}
 
       {!loading && activeMatches.length === 0 && (
         <p className="page-copy">
           {view === "open"
             ? "No hay partidos abiertos para pronosticar en este momento."
-            : "Aun no hay partidos finalizados."}
+            : view === "live"
+              ? "No hay partidos en curso ahora mismo."
+              : "Aun no hay partidos finalizados."}
         </p>
       )}
 
@@ -320,7 +352,51 @@ export function PredictionsPage() {
                   );
                 }
 
-                const scores = draft[match.id] ?? { homeScore: 0, awayScore: 0 };
+                if (view === "live") {
+                  const prediction = savedPredictions[match.id];
+                  const hasPrediction = prediction && isCompleteScorePair(prediction);
+                  const hasLiveScore =
+                    match.homeScore !== undefined && match.awayScore !== undefined;
+
+                  return (
+                    <article className="prediction-row live" key={match.id}>
+                      <div className="match-meta">
+                        <strong>{match.group}</strong>
+                        <span>
+                          {match.date} - {match.venue}
+                        </span>
+                      </div>
+                      <div className="teams">
+                        <span>{match.home}</span>
+                        <div className="score-final">
+                          {hasLiveScore ? (
+                            <>
+                              <strong>{match.homeScore}</strong>
+                              <span>-</span>
+                              <strong>{match.awayScore}</strong>
+                            </>
+                          ) : (
+                            <span className="ticket-score">vs</span>
+                          )}
+                        </div>
+                        <span>{match.away}</span>
+                      </div>
+                      <div className="prediction-summary">
+                        <MatchStatusBadge match={match} />
+                        <div className={`own-prediction-pill${hasPrediction ? "" : " empty"}`}>
+                          <span>Tu marcador</span>
+                          <strong>
+                            {hasPrediction
+                              ? `${prediction.homeScore}-${prediction.awayScore}`
+                              : "Sin pronostico"}
+                          </strong>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                }
+
+                const scores = draft[match.id] ?? { homeScore: null, awayScore: null };
 
                 return (
                   <article className="prediction-row" key={match.id}>
@@ -333,26 +409,16 @@ export function PredictionsPage() {
                     <div className="teams">
                       <span>{match.home}</span>
                       <div className="score-inputs">
-                        <input
-                          type="number"
-                          min={0}
-                          max={15}
-                          aria-label={`Goles de ${match.home}`}
+                        <ScoreInput
+                          label={`Goles de ${match.home}`}
                           value={scores.homeScore}
-                          onChange={(event) =>
-                            updateScore(match.id, "homeScore", parseGoalsInput(event.target.value))
-                          }
+                          onChange={(value) => updateScore(match.id, "homeScore", value)}
                         />
                         <span>-</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={15}
-                          aria-label={`Goles de ${match.away}`}
+                        <ScoreInput
+                          label={`Goles de ${match.away}`}
                           value={scores.awayScore}
-                          onChange={(event) =>
-                            updateScore(match.id, "awayScore", parseGoalsInput(event.target.value))
-                          }
+                          onChange={(value) => updateScore(match.id, "awayScore", value)}
                         />
                       </div>
                       <span>{match.away}</span>

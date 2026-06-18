@@ -6,7 +6,9 @@ export function clampGoals(value: number): number {
   return Math.min(MAX_GOALS, Math.max(MIN_GOALS, Math.trunc(value)));
 }
 
-export function parseGoalsInput(raw: string): number {
-  if (raw.trim() === "") return MIN_GOALS;
-  return clampGoals(Number(raw));
+export function parseGoalsInput(raw: string): number | null {
+  if (raw.trim() === "") return null;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return null;
+  return clampGoals(parsed);
 }

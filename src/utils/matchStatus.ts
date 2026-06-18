@@ -14,6 +14,10 @@ export function getOpenMatches(matches: Match[]): Match[] {
   return sortMatchesByKickoff(matches.filter(isMatchOpen));
 }
 
+export function getLiveMatches(matches: Match[]): Match[] {
+  return sortMatchesByKickoff(matches.filter((match) => match.status === "live"));
+}
+
 export function getFinishedMatches(matches: Match[]): Match[] {
   return sortMatchesByKickoff(
     matches.filter(

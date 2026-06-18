@@ -1004,7 +1004,7 @@ legend {
 
 .predictions-view-toggle {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.45rem;
   margin: 0.85rem 0 0.35rem;
 }
@@ -1193,6 +1193,44 @@ legend {
 
 .prediction-row.finished {
   grid-template-columns: 1fr minmax(220px, 1fr) minmax(200px, 1fr);
+}
+
+.prediction-row.live {
+  grid-template-columns: 1fr minmax(220px, 1fr) minmax(200px, 1fr);
+}
+
+.own-prediction-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(242, 92, 5, 0.35);
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(242, 92, 5, 0.08);
+  font-size: 0.82rem;
+}
+
+.own-prediction-pill span {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.own-prediction-pill strong {
+  font-family: var(--display);
+  font-size: 1rem;
+}
+
+.own-prediction-pill.empty {
+  border-color: rgba(226, 232, 240, 0.12);
+  background: rgba(10, 28, 51, 0.35);
+  color: rgba(226, 232, 240, 0.45);
+  font-style: italic;
+}
+
+.own-prediction-pill.empty strong {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .prediction-summary {
