@@ -3,10 +3,10 @@ import { useMatches } from "../context/MatchesContext";
 import { computeLeaderboard, getScoredMatches, type LeaderboardEntry } from "../services/leaderboard";
 import { listLeagueMembers, type LeagueMemberRecord } from "../services/members";
 import { loadPredictionsForMembers } from "../services/predictions";
-import type { LeagueRecord, PredictionRecord, Match } from "../types";
+import type { LeagueRecord, PredictionRecord } from "../types";
 
 export function useLeaderboard(league: LeagueRecord | null) {
-  const { matches } = useMatches();
+  const { matches, loading: matchesLoading } = useMatches();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [members, setMembers] = useState<LeagueMemberRecord[]>([]);
   const [predictions, setPredictions] = useState<PredictionRecord[]>([]);
@@ -16,11 +16,7 @@ export function useLeaderboard(league: LeagueRecord | null) {
   const finishedMatches = useMemo(() => getScoredMatches(matches), [matches]);
 
   const load = useCallback(async () => {
-    if (!league) {
-      setEntries([]);
-      setMembers([]);
-      setPredictions([]);
-      setLoading(false);
+    if (!league || matchesLoading) {
       return;
     }
 
@@ -28,17 +24,17 @@ export function useLeaderboard(league: LeagueRecord | null) {
     setError("");
 
     try {
-      const members = await listLeagueMembers(league.id);
+      const nextMembers = await listLeagueMembers(league.id);
       const matchIds = finishedMatches.map((match) => match.id);
       const preds = await loadPredictionsForMembers(
         league.id,
-        members.map((member) => member.userId),
+        nextMembers.map((member) => member.userId),
         matchIds,
       );
 
-      setMembers(members);
+      setMembers(nextMembers);
       setPredictions(preds);
-      setEntries(computeLeaderboard(league, members, preds, finishedMatches));
+      setEntries(computeLeaderboard(league, nextMembers, preds, finishedMatches));
     } catch (err) {
       setError(err instanceof Error ? err.message : "No pudimos cargar la clasificacion.");
       setEntries([]);
@@ -47,11 +43,25 @@ export function useLeaderboard(league: LeagueRecord | null) {
     } finally {
       setLoading(false);
     }
-  }, [finishedMatches, league]);
+  }, [finishedMatches, league, matchesLoading]);
 
   useEffect(() => {
+    if (!league) {
+      setEntries([]);
+      setMembers([]);
+      setPredictions([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
+    if (matchesLoading) {
+      setLoading(true);
+      return;
+    }
+
     void load();
-  }, [load]);
+  }, [league, load, matchesLoading]);
 
   return {
     entries,
@@ -59,8 +69,8 @@ export function useLeaderboard(league: LeagueRecord | null) {
     predictions,
     finishedMatches,
     finishedMatchCount: finishedMatches.length,
-    loading,
+    loading: matchesLoading || loading,
     error,
     reload: load,
   };
-}
+};

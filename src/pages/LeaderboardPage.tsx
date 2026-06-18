@@ -56,7 +56,12 @@ export function LeaderboardPage() {
         <Crown className="crown" size={44} />
       </div>
 
-      {loading && <LeaderboardSkeleton count={4} />}
+      {loading && (
+        <>
+          <p className="predictions-scope">Cargando clasificacion...</p>
+          <LeaderboardSkeleton count={6} />
+        </>
+      )}
       {error && <p className="auth-error">{error}</p>}
 
       {!loading && !error && matchdayTabs.length > 0 && (
