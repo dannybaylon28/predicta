@@ -68,6 +68,25 @@ service cloud.firestore {
         && request.resource.data.kickoffAt > request.time;
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.uid == 'LYkwHLzH9oV0K91oXGTokNZY8bq2';
+    }
+
+    function isValidAdminPredictionData() {
+      return request.resource.data.userId is string
+        && request.resource.data.matchId is string
+        && request.resource.data.homeScore is int
+        && request.resource.data.awayScore is int
+        && request.resource.data.homeScore >= 0
+        && request.resource.data.homeScore <= 15
+        && request.resource.data.awayScore >= 0
+        && request.resource.data.awayScore <= 15;
+    }
+
+    function isTargetPredictionDoc(predictionId) {
+      return predictionId == request.resource.data.userId + '_' + request.resource.data.matchId;
+    }
+
     function isOwnPredictionDoc(predictionId) {
       return predictionId == request.auth.uid + '_' + request.resource.data.matchId;
     }
@@ -139,15 +158,24 @@ service cloud.firestore {
       match /predictions/{predictionId} {
         allow get, list: if isLeagueMember(leagueId);
         allow create: if isLeagueMember(leagueId)
-          && isOwnPredictionDoc(predictionId)
-          && isValidPredictionData();
+          && (
+            (isOwnPredictionDoc(predictionId) && isValidPredictionData())
+            || (isSuperAdmin() && isTargetPredictionDoc(predictionId) && isValidAdminPredictionData())
+          );
         allow update: if isLeagueMember(leagueId)
-          && isOwnPredictionDoc(predictionId)
-          && isValidPredictionData()
-          && resource.data.userId == request.auth.uid;
+          && (
+            (isOwnPredictionDoc(predictionId)
+              && isValidPredictionData()
+              && resource.data.userId == request.auth.uid)
+            || (isSuperAdmin() && isTargetPredictionDoc(predictionId) && isValidAdminPredictionData())
+          );
         allow delete: if isLeagueMember(leagueId)
-          && resource.data.userId == request.auth.uid
-          && predictionId == request.auth.uid + '_' + resource.data.matchId;
+          && (
+            (resource.data.userId == request.auth.uid
+              && predictionId == request.auth.uid + '_' + resource.data.matchId)
+            || (isSuperAdmin()
+              && predictionId == resource.data.userId + '_' + resource.data.matchId)
+          );
       }
     }
   }

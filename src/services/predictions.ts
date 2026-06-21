@@ -1,10 +1,12 @@
 import {
   Timestamp,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -177,4 +179,44 @@ export async function deleteUserPredictions(
 
   await batch.commit();
   return deletedCount;
+}
+
+export async function adminSaveMemberPrediction(
+  leagueId: string,
+  targetUserId: string,
+  matchId: string,
+  homeScore: number,
+  awayScore: number,
+  kickoffAt: string,
+): Promise<void> {
+  const ref = doc(
+    db,
+    "leagues",
+    leagueId,
+    "predictions",
+    predictionDocId(targetUserId, matchId),
+  );
+
+  await setDoc(
+    ref,
+    {
+      userId: targetUserId,
+      matchId,
+      homeScore: clampGoals(homeScore),
+      awayScore: clampGoals(awayScore),
+      kickoffAt: Timestamp.fromDate(new Date(kickoffAt)),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function adminDeleteMemberPrediction(
+  leagueId: string,
+  targetUserId: string,
+  matchId: string,
+): Promise<void> {
+  await deleteDoc(
+    doc(db, "leagues", leagueId, "predictions", predictionDocId(targetUserId, matchId)),
+  );
 }

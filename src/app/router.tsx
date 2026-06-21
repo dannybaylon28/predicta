@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
 import { ProtectedRoute } from "../components/auth/ProtectedRoute";
+import { SuperAdminRoute } from "../components/auth/SuperAdminRoute";
 import { AppShell } from "../components/layout/AppShell";
+import { AdminPanelPage } from "../pages/AdminPanelPage";
 import { CreateLeaguePage } from "../pages/CreateLeaguePage";
 import { DashboardPage } from "../pages/DashboardPage";
 import { JoinLeaguePage } from "../pages/JoinLeaguePage";
@@ -80,6 +82,16 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "admin",
+        element: (
+          <ProtectedRoute>
+            <SuperAdminRoute>
+              <AdminPanelPage />
+            </SuperAdminRoute>
           </ProtectedRoute>
         ),
       },

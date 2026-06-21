@@ -1,12 +1,13 @@
 import { LogOut, Menu, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { APP_DOMAIN, APP_NAME, APP_TAGLINE } from "../../constants/brand";
 import { InstallPwaBanner } from "../pwa/InstallPwaBanner";
 import { useAuth } from "../../context/AuthContext";
 import { logOut } from "../../services/auth";
+import { isSuperAdmin } from "../../utils/superAdmin";
 
-const navItems: { to: string; label: string; end?: boolean }[] = [
+const baseNavItems: { to: string; label: string; end?: boolean }[] = [
   { to: "/", label: "Inicio", end: true },
   { to: "/mis-ligas", label: "Mis ligas" },
   { to: "/unirse", label: "Unirse" },
@@ -31,6 +32,11 @@ export function AppShell() {
 
   const displayName =
     profile?.displayName || user?.displayName || user?.email?.split("@")[0] || "Jugador";
+
+  const navItems = useMemo(() => {
+    if (!isSuperAdmin(user?.uid)) return baseNavItems;
+    return [...baseNavItems, { to: "/admin", label: "Admin" }];
+  }, [user?.uid]);
 
   return (
     <div className="app-shell">
