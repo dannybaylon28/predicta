@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { calculateMatchPoints, getMatchOutcome, isExactScore, isResultCorrect } from "./scoring";
+import {
+  ADVANCE_BONUS_POINTS,
+  calculateMatchPoints,
+  calculateMatchPointsWithAdvance,
+  getMatchOutcome,
+  isExactScore,
+  isResultCorrect,
+} from "./scoring";
 
 const hybridConfig = { scoringMode: "hybrid" as const, resultPoints: 3, exactBonus: 2 };
 const resultConfig = { scoringMode: "result" as const, resultPoints: 3, exactBonus: 2 };
@@ -83,5 +90,66 @@ describe("calculateMatchPoints", () => {
       { homeScore: 3, awayScore: 0 },
     );
     expect(resultOnly).toEqual({ points: 3, isExact: false, isResultCorrect: true });
+  });
+});
+
+describe("calculateMatchPointsWithAdvance", () => {
+  // Escenario base: 90' termina 2-2 y avanza el local (Alemania) en TE/penales.
+  const ko90 = {
+    homeScore: 2,
+    awayScore: 2,
+    decidedInExtraTime: true,
+    advancer: "home" as const,
+  };
+
+  it("da marcador exacto sin bonus si falla quien avanza", () => {
+    const points = calculateMatchPointsWithAdvance(
+      hybridConfig,
+      { homeScore: 2, awayScore: 2, advancer: "away" },
+      ko90,
+    );
+    expect(points.points).toBe(5);
+    expect(points.advanceBonus).toBe(0);
+    expect(points.advanceCorrect).toBe(false);
+  });
+
+  it("da resultado (no exacto) + bonus por acertar quien avanza", () => {
+    const points = calculateMatchPointsWithAdvance(
+      hybridConfig,
+      { homeScore: 1, awayScore: 1, advancer: "home" },
+      ko90,
+    );
+    expect(points.points).toBe(4);
+    expect(points.advanceBonus).toBe(ADVANCE_BONUS_POINTS);
+    expect(points.advanceCorrect).toBe(true);
+  });
+
+  it("da marcador exacto + bonus por acertar quien avanza", () => {
+    const points = calculateMatchPointsWithAdvance(
+      hybridConfig,
+      { homeScore: 2, awayScore: 2, advancer: "home" },
+      ko90,
+    );
+    expect(points.points).toBe(6);
+    expect(points.advanceBonus).toBe(ADVANCE_BONUS_POINTS);
+  });
+
+  it("no da bonus si el partido se definio en los 90'", () => {
+    const points = calculateMatchPointsWithAdvance(
+      hybridConfig,
+      { homeScore: 1, awayScore: 1, advancer: "home" },
+      { homeScore: 2, awayScore: 1, decidedInExtraTime: false, advancer: "home" },
+    );
+    expect(points.advanceBonus).toBe(0);
+    expect(points.advanceCorrect).toBe(false);
+  });
+
+  it("no da bonus si la prediccion no fue empate", () => {
+    const points = calculateMatchPointsWithAdvance(
+      hybridConfig,
+      { homeScore: 2, awayScore: 1, advancer: "home" },
+      ko90,
+    );
+    expect(points.advanceBonus).toBe(0);
   });
 });

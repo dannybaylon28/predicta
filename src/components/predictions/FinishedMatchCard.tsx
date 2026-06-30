@@ -1,12 +1,14 @@
 import { ChevronDown } from "lucide-react";
 import { MatchStatusBadge } from "../match/MatchStatusBadge";
-import type { Match } from "../../types";
+import type { Advancer, Match } from "../../types";
+import { isKnockoutStage } from "../../utils/knockout";
 
 export type FinishedMatchPick = {
   userId: string;
   name: string;
   homeScore: number;
   awayScore: number;
+  advancer?: Advancer;
 };
 
 type FinishedMatchCardProps = {
@@ -28,6 +30,17 @@ export function FinishedMatchCard({
     picks.length === 0
       ? "Sin pronosticos"
       : `${picks.length} pronostico${picks.length === 1 ? "" : "s"}`;
+
+  const isKo = isKnockoutStage(match.stage);
+  const advancerName = match.advancer
+    ? match.advancer === "home"
+      ? match.home
+      : match.away
+    : null;
+  const has90 =
+    match.regulationHomeScore !== undefined && match.regulationAwayScore !== undefined;
+  // Mostramos el detalle KO cuando se definio tras un empate (TE/penales).
+  const showKoDetail = isKo && match.decidedInExtraTime && advancerName;
 
   return (
     <article className={`finished-match-card${expanded ? " expanded" : ""}`}>
@@ -53,6 +66,12 @@ export function FinishedMatchCard({
             </div>
             <span>{match.away}</span>
           </div>
+          {showKoDetail && (
+            <p className="finished-ko-detail">
+              {has90 ? `90': ${match.regulationHomeScore}-${match.regulationAwayScore} · ` : ""}
+              Avanzó <strong>{advancerName}</strong>
+            </p>
+          )}
         </div>
         <div className="finished-match-toggle">
           <MatchStatusBadge match={match} />
@@ -70,17 +89,31 @@ export function FinishedMatchCard({
             {picks.length === 0 ? (
               <li className="league-pick empty">Nadie pronostico este partido</li>
             ) : (
-              picks.map((pick) => (
-                <li
-                  className={`league-pick${pick.userId === currentUserId ? " own" : ""}`}
-                  key={pick.userId}
-                >
-                  <span>{pick.name}</span>
-                  <strong>
-                    {pick.homeScore}-{pick.awayScore}
-                  </strong>
-                </li>
-              ))
+              picks.map((pick) => {
+                const pickIsDraw = pick.homeScore === pick.awayScore;
+                const showAdvance = Boolean(showKoDetail) && pickIsDraw && pick.advancer != null;
+                const advanceHit = showAdvance && pick.advancer === match.advancer;
+
+                return (
+                  <li
+                    className={`league-pick${pick.userId === currentUserId ? " own" : ""}`}
+                    key={pick.userId}
+                  >
+                    <span>{pick.name}</span>
+                    <span className="league-pick-result">
+                      <strong>
+                        {pick.homeScore}-{pick.awayScore}
+                      </strong>
+                      {showAdvance ? (
+                        <small className={`pick-advance${advanceHit ? " hit" : " miss"}`}>
+                          {pick.advancer === "home" ? match.home : match.away}
+                          {advanceHit ? " ✓" : " ✗"}
+                        </small>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>

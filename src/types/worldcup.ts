@@ -11,6 +11,8 @@ export type ApiGame = {
   finished: string;
   time_elapsed: string;
   type: string;
+  home_penalty_score?: string;
+  away_penalty_score?: string;
   home_team_name_en?: string;
   away_team_name_en?: string;
   home_team_label?: string;

@@ -1,7 +1,10 @@
 import type { LeagueMemberRecord } from "./members";
 import type { LeagueRecord, Match, PredictionRecord } from "../types";
 import { getInitials } from "../utils/initials";
-import { calculateMatchPoints, type LeagueScoringConfig } from "../utils/scoring";
+import {
+  calculateMatchPointsWithAdvance,
+  type LeagueScoringConfig,
+} from "../utils/scoring";
 
 export type LeaderboardEntry = {
   id: string;
@@ -52,10 +55,23 @@ export function computeLeaderboard(
       const prediction = predictionIndex.get(`${member.userId}_${match.id}`);
       if (!prediction) return;
 
-      const outcome = calculateMatchPoints(
+      // En fase KO el marcador se evalua a los 90' (sin tiempo extra ni penales).
+      const resultHome = match.regulationHomeScore ?? match.homeScore!;
+      const resultAway = match.regulationAwayScore ?? match.awayScore!;
+
+      const outcome = calculateMatchPointsWithAdvance(
         config,
-        { homeScore: prediction.homeScore, awayScore: prediction.awayScore },
-        { homeScore: match.homeScore!, awayScore: match.awayScore! },
+        {
+          homeScore: prediction.homeScore,
+          awayScore: prediction.awayScore,
+          advancer: prediction.advancer,
+        },
+        {
+          homeScore: resultHome,
+          awayScore: resultAway,
+          decidedInExtraTime: match.decidedInExtraTime,
+          advancer: match.advancer,
+        },
       );
 
       points += outcome.points;

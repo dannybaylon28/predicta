@@ -1357,6 +1357,99 @@ legend {
   font-size: 0.92rem;
 }
 
+.league-pick-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pick-advance {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pick-advance.hit {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.14);
+}
+
+.pick-advance.miss {
+  color: rgba(226, 232, 240, 0.55);
+  background: rgba(226, 232, 240, 0.08);
+}
+
+/* ── Selector "¿quién avanza?" (fase KO) ── */
+
+.advance-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(242, 92, 5, 0.28);
+}
+
+.advance-selector-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.6);
+}
+
+.advance-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.advance-option {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(226, 232, 240, 0.16);
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(10, 28, 51, 0.4);
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.advance-option:hover:not(:disabled) {
+  border-color: rgba(242, 92, 5, 0.5);
+}
+
+.advance-option.active {
+  border-color: rgba(242, 92, 5, 0.7);
+  background: rgba(242, 92, 5, 0.16);
+  color: #fff;
+}
+
+.advance-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.own-prediction-advance {
+  display: block;
+  width: 100%;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: rgba(242, 92, 5, 0.85);
+}
+
+.finished-ko-detail {
+  margin: 0.35rem 0 0;
+  font-size: 0.74rem;
+  color: rgba(226, 232, 240, 0.62);
+}
+
+.finished-ko-detail strong {
+  color: rgba(226, 232, 240, 0.92);
+}
+
 .status-dot.finished {
   color: rgba(226, 232, 240, 0.62);
 }

@@ -1,4 +1,8 @@
-import type { ScoringMode } from "../types";
+import type { Advancer, ScoringMode } from "../types";
+
+// Bonus fijo (no configurable por liga) por acertar quien avanza cuando un
+// partido de fase KO se define tras un empate en los 90' (tiempo extra o penales).
+export const ADVANCE_BONUS_POINTS = 1;
 
 export type ScoreLine = {
   homeScore: number;
@@ -9,6 +13,20 @@ export type MatchPointsResult = {
   points: number;
   isExact: boolean;
   isResultCorrect: boolean;
+};
+
+export type AdvancePrediction = ScoreLine & {
+  advancer?: Advancer;
+};
+
+export type KnockoutResult = ScoreLine & {
+  decidedInExtraTime?: boolean;
+  advancer?: Advancer;
+};
+
+export type DetailedMatchPoints = MatchPointsResult & {
+  advanceBonus: number;
+  advanceCorrect: boolean;
 };
 
 export type LeagueScoringConfig = {
@@ -64,4 +82,36 @@ export function calculateMatchPoints(
       return { points, isExact: exact, isResultCorrect: resultCorrect };
     }
   }
+}
+
+// El marcador (exacto/resultado) se evalua contra el marcador a los 90'.
+// Si el partido se definio tras un empate (tiempo extra/penales) y el usuario
+// predijo empate y acerto quien avanza, suma ADVANCE_BONUS_POINTS adicional.
+export function calculateMatchPointsWithAdvance(
+  config: LeagueScoringConfig,
+  prediction: AdvancePrediction,
+  result: KnockoutResult,
+): DetailedMatchPoints {
+  const base = calculateMatchPoints(
+    config,
+    { homeScore: prediction.homeScore, awayScore: prediction.awayScore },
+    { homeScore: result.homeScore, awayScore: result.awayScore },
+  );
+
+  const predictedDraw = prediction.homeScore === prediction.awayScore;
+  const advanceCorrect =
+    Boolean(result.decidedInExtraTime) &&
+    predictedDraw &&
+    prediction.advancer != null &&
+    result.advancer != null &&
+    prediction.advancer === result.advancer;
+
+  const advanceBonus = advanceCorrect ? ADVANCE_BONUS_POINTS : 0;
+
+  return {
+    ...base,
+    points: base.points + advanceBonus,
+    advanceBonus,
+    advanceCorrect,
+  };
 }

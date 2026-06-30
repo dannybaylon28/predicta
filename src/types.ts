@@ -11,6 +11,8 @@ export type MatchStage =
 
 export type MatchStatus = "scheduled" | "live" | "finished";
 
+export type Advancer = "home" | "away";
+
 export type Match = {
   id: string;
   group: string;
@@ -25,6 +27,14 @@ export type Match = {
   locked: boolean;
   status: MatchStatus;
   stage: MatchStage;
+  // Enriquecimiento de fase KO (football-data.org):
+  // marcador al minuto 90 (sin tiempo extra ni penales).
+  regulationHomeScore?: number;
+  regulationAwayScore?: number;
+  // Se definio tras un empate en los 90' (tiempo extra o penales).
+  decidedInExtraTime?: boolean;
+  // Equipo que avanzo a la siguiente ronda.
+  advancer?: Advancer;
 };
 
 export type LeagueRecord = {
@@ -47,6 +57,7 @@ export type Prediction = {
   matchId: string;
   homeScore: number;
   awayScore: number;
+  advancer?: Advancer;
 };
 
 export type PredictionRecord = {
@@ -54,6 +65,7 @@ export type PredictionRecord = {
   matchId: string;
   homeScore: number;
   awayScore: number;
+  advancer?: Advancer;
   kickoffAt: string;
   updatedAt?: string;
 };

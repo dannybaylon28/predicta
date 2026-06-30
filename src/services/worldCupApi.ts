@@ -1,6 +1,12 @@
-import type { Match, MatchStage, MatchStatus } from "../types";
+import type { Advancer, Match, MatchStage, MatchStatus } from "../types";
 import type { ApiGame, ApiStadium } from "../types/worldcup";
 import { toSpanishTeamName } from "../utils/teamNames";
+import { isKnockoutStage } from "../utils/knockout";
+import {
+  getKoEnrichment,
+  loadKoEnrichment,
+  type KoMatchEnrichment,
+} from "./footballDataApi";
 
 type GamesResponse = { games: ApiGame[] };
 type StadiumsResponse = { stadiums: ApiStadium[] };
@@ -83,7 +89,56 @@ function mapGroupLabel(group: string, stage: MatchStage): string {
   return group;
 }
 
-function mapGame(game: ApiGame, stadiums: Map<string, ApiStadium>): Match {
+type KnockoutDetails = {
+  regulationHomeScore?: number;
+  regulationAwayScore?: number;
+  decidedInExtraTime?: boolean;
+  advancer?: Advancer;
+};
+
+function resolveKnockoutDetails(
+  game: ApiGame,
+  status: MatchStatus,
+  homeScore: number,
+  awayScore: number,
+  enrichment: KoMatchEnrichment | undefined,
+): KnockoutDetails {
+  if (enrichment) {
+    return {
+      regulationHomeScore: enrichment.regulationHomeScore,
+      regulationAwayScore: enrichment.regulationAwayScore,
+      decidedInExtraTime: enrichment.decidedInExtraTime,
+      advancer: enrichment.advancer,
+    };
+  }
+
+  // Sin football-data: usamos los penales de worldcup26 como respaldo para el
+  // bonus de "quien avanza". El marcador a los 90' queda indefinido (se puntua
+  // con el marcador final, como respaldo).
+  const homePenalty = Number(game.home_penalty_score);
+  const awayPenalty = Number(game.away_penalty_score);
+  if (Number.isFinite(homePenalty) && Number.isFinite(awayPenalty) && homePenalty !== awayPenalty) {
+    return {
+      decidedInExtraTime: true,
+      advancer: homePenalty > awayPenalty ? "home" : "away",
+    };
+  }
+
+  if (status === "finished" && Number.isFinite(homeScore) && Number.isFinite(awayScore)) {
+    return {
+      decidedInExtraTime: false,
+      advancer: homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : undefined,
+    };
+  }
+
+  return {};
+}
+
+function mapGame(
+  game: ApiGame,
+  stadiums: Map<string, ApiStadium>,
+  koEnrichment: Map<string, KoMatchEnrichment>,
+): Match {
   const kickoff = parseKickoff(game.local_date, game.stadium_id);
   const stadium = stadiums.get(game.stadium_id);
   const stage = mapStage(game.type);
@@ -92,6 +147,19 @@ function mapGame(game: ApiGame, stadiums: Map<string, ApiStadium>): Match {
   const away = toSpanishTeamName(game.away_team_name_en ?? game.away_team_label ?? "Por definir");
   const homeScore = Number(game.home_score);
   const awayScore = Number(game.away_score);
+  const hasHomeScore = Number.isFinite(homeScore);
+  const hasAwayScore = Number.isFinite(awayScore);
+
+  const knockout: KnockoutDetails =
+    isKnockoutStage(stage) && status === "finished"
+      ? resolveKnockoutDetails(
+          game,
+          status,
+          homeScore,
+          awayScore,
+          getKoEnrichment(koEnrichment, game.home_team_name_en, game.away_team_name_en),
+        )
+      : {};
 
   return {
     id: game.id,
@@ -102,11 +170,15 @@ function mapGame(game: ApiGame, stadiums: Map<string, ApiStadium>): Match {
     venue: stadium?.fifa_name ?? stadium?.name_en ?? "Por confirmar",
     home,
     away,
-    homeScore: Number.isFinite(homeScore) ? homeScore : undefined,
-    awayScore: Number.isFinite(awayScore) ? awayScore : undefined,
+    homeScore: hasHomeScore ? homeScore : undefined,
+    awayScore: hasAwayScore ? awayScore : undefined,
     locked: status !== "scheduled",
     status,
     stage,
+    regulationHomeScore: knockout.regulationHomeScore,
+    regulationAwayScore: knockout.regulationAwayScore,
+    decidedInExtraTime: knockout.decidedInExtraTime,
+    advancer: knockout.advancer,
   };
 }
 
@@ -181,11 +253,12 @@ async function fetchStadiumMap(): Promise<Map<string, ApiStadium>> {
 export async function fetchWorldCupMatches(force = false): Promise<Match[]> {
   if (cachedMatches && !force) return cachedMatches;
 
-  const [gamesData, stadiums] = await Promise.all([
+  const [gamesData, stadiums, koEnrichment] = await Promise.all([
     fetchJsonWithFallback<GamesResponse>("/games", LOCAL_GAMES_URL),
     fetchStadiumMap(),
+    loadKoEnrichment(force),
   ]);
 
-  cachedMatches = gamesData.games.map((game) => mapGame(game, stadiums));
+  cachedMatches = gamesData.games.map((game) => mapGame(game, stadiums, koEnrichment));
   return cachedMatches;
 }

@@ -2,6 +2,7 @@ import { Save, Shield } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MatchStatusBadge } from "../components/match/MatchStatusBadge";
 import { ScoreInput } from "../components/predictions/ScoreInput";
+import { AdvanceSelector } from "../components/predictions/AdvanceSelector";
 import { PredictionListSkeleton } from "../components/ui/Skeleton";
 import { useLeague } from "../context/LeagueContext";
 import { useMatches } from "../context/MatchesContext";
@@ -15,13 +16,14 @@ import {
   loadUserPredictions,
   type ScorePair,
 } from "../services/predictions";
-import type { Match } from "../types";
+import type { Advancer, Match } from "../types";
 import {
   ALL_MATCHDAYS_KEY,
   buildMatchdayOptions,
   filterMatchesByMatchday,
   groupMatchesByCalendarDay,
 } from "../utils/matchFilters";
+import { isKnockoutStage } from "../utils/knockout";
 import { sortMatchesByKickoff } from "../utils/matchStatus";
 
 type ScoreDraft = Record<string, ScorePair>;
@@ -29,7 +31,7 @@ type SavedSnapshot = Record<string, ScorePair>;
 
 function buildDraftFromSaved(
   matches: Match[],
-  saved: Record<string, { homeScore: number; awayScore: number }>,
+  saved: Record<string, ScorePair>,
 ): ScoreDraft {
   const draft: ScoreDraft = {};
   matches.forEach((match) => {
@@ -37,6 +39,7 @@ function buildDraftFromSaved(
     draft[match.id] = {
       homeScore: existing?.homeScore ?? null,
       awayScore: existing?.awayScore ?? null,
+      advancer: existing?.advancer ?? null,
     };
   });
   return draft;
@@ -105,11 +108,12 @@ export function AdminPanelPage() {
 
     try {
       const savedRecords = await loadUserPredictions(selectedLeagueId, selectedMemberId);
-      const saved: Record<string, { homeScore: number; awayScore: number }> = {};
+      const saved: Record<string, ScorePair> = {};
       Object.values(savedRecords).forEach((record) => {
         saved[record.matchId] = {
           homeScore: record.homeScore,
           awayScore: record.awayScore,
+          advancer: record.advancer ?? null,
         };
       });
 
@@ -158,20 +162,42 @@ export function AdminPanelPage() {
   const loading = leaguesLoading || matchesLoading || loadingMembers || loadingPredictions;
 
   const updateScore = (matchId: string, side: "homeScore" | "awayScore", value: number | null) => {
-    setDraft((current) => ({
-      ...current,
-      [matchId]: {
-        homeScore: side === "homeScore" ? value : (current[matchId]?.homeScore ?? null),
-        awayScore: side === "awayScore" ? value : (current[matchId]?.awayScore ?? null),
-      },
-    }));
+    setDraft((current) => {
+      const existing = current[matchId] ?? { homeScore: null, awayScore: null };
+      const homeScore = side === "homeScore" ? value : (existing.homeScore ?? null);
+      const awayScore = side === "awayScore" ? value : (existing.awayScore ?? null);
+      const isDraw = homeScore !== null && awayScore !== null && homeScore === awayScore;
+
+      return {
+        ...current,
+        [matchId]: {
+          homeScore,
+          awayScore,
+          advancer: isDraw ? (existing.advancer ?? null) : null,
+        },
+      };
+    });
+  };
+
+  const updateAdvancer = (matchId: string, advancer: Advancer) => {
+    setDraft((current) => {
+      const existing = current[matchId] ?? { homeScore: null, awayScore: null };
+      return {
+        ...current,
+        [matchId]: { ...existing, advancer },
+      };
+    });
   };
 
   const hasMatchChanges = (matchId: string) => {
     const current = draft[matchId];
     const saved = savedSnapshot[matchId];
     if (!current || !saved) return false;
-    return current.homeScore !== saved.homeScore || current.awayScore !== saved.awayScore;
+    return (
+      current.homeScore !== saved.homeScore ||
+      current.awayScore !== saved.awayScore ||
+      (current.advancer ?? null) !== (saved.advancer ?? null)
+    );
   };
 
   const saveMatch = async (match: Match) => {
@@ -186,7 +212,7 @@ export function AdminPanelPage() {
     try {
       if (isEmptyScorePair(scores)) {
         await adminDeleteMemberPrediction(selectedLeagueId, selectedMemberId, match.id);
-        const empty = { homeScore: null, awayScore: null };
+        const empty = { homeScore: null, awayScore: null, advancer: null };
         setSavedSnapshot((current) => ({ ...current, [match.id]: empty }));
         showToast(`Prediccion eliminada para ${match.home} vs ${match.away}.`, "success");
         return;
@@ -200,10 +226,10 @@ export function AdminPanelPage() {
       await adminSaveMemberPrediction(
         selectedLeagueId,
         selectedMemberId,
-        match.id,
+        match,
         scores.homeScore,
         scores.awayScore,
-        match.kickoffAt,
+        scores.advancer ?? null,
       );
 
       setSavedSnapshot((current) => ({
@@ -314,9 +340,18 @@ export function AdminPanelPage() {
 
             <div className="prediction-list">
               {dayGroup.matches.map((match) => {
-                const scores = draft[match.id] ?? { homeScore: null, awayScore: null };
+                const scores = draft[match.id] ?? {
+                  homeScore: null,
+                  awayScore: null,
+                  advancer: null,
+                };
                 const changed = hasMatchChanges(match.id);
                 const isSaving = savingMatchId === match.id;
+                const isDrawPick =
+                  scores.homeScore !== null &&
+                  scores.awayScore !== null &&
+                  scores.homeScore === scores.awayScore;
+                const showAdvanceSelector = isKnockoutStage(match.stage) && isDrawPick;
 
                 return (
                   <article
@@ -346,6 +381,14 @@ export function AdminPanelPage() {
                       </div>
                       <span>{match.away}</span>
                     </div>
+                    {showAdvanceSelector && (
+                      <AdvanceSelector
+                        homeTeam={match.home}
+                        awayTeam={match.away}
+                        value={scores.advancer ?? null}
+                        onChange={(advancer) => updateAdvancer(match.id, advancer)}
+                      />
+                    )}
                     <div className="prediction-row-actions admin-prediction-actions">
                       <MatchStatusBadge match={match} />
                       {changed ? <span className="prediction-draft-hint">Sin guardar</span> : null}

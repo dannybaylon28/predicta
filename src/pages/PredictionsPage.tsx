@@ -10,7 +10,7 @@ import { useToast } from "../context/ToastContext";
 import { usePredictions } from "../hooks/usePredictions";
 import { listLeagueMembers } from "../services/members";
 import { loadPredictionsForMembers } from "../services/predictions";
-import type { PredictionRecord } from "../types";
+import type { Advancer, PredictionRecord } from "../types";
 import {
   ALL_MATCHDAYS_KEY,
   buildMatchdayOptions,
@@ -19,7 +19,9 @@ import {
   groupMatchesByCalendarDay,
 } from "../utils/matchFilters";
 import { getFinishedMatches, getLiveMatches } from "../utils/matchStatus";
+import { isKnockoutStage } from "../utils/knockout";
 import { ScoreInput } from "../components/predictions/ScoreInput";
+import { AdvanceSelector } from "../components/predictions/AdvanceSelector";
 import { isCompleteScorePair } from "../services/predictions";
 
 type PredictionsView = "open" | "live" | "finished";
@@ -29,6 +31,7 @@ type LeaguePick = {
   name: string;
   homeScore: number;
   awayScore: number;
+  advancer?: Advancer;
 };
 
 export function PredictionsPage() {
@@ -48,6 +51,7 @@ export function PredictionsPage() {
     pendingChangeCount,
     pendingChangeByMatchId,
     updateScore,
+    updateAdvancer,
     saveAll,
   } = usePredictions(selectedLeague?.id ?? null, user?.uid, matches);
 
@@ -92,6 +96,7 @@ export function PredictionsPage() {
           name: names.get(prediction.userId) ?? "Jugador",
           homeScore: prediction.homeScore,
           awayScore: prediction.awayScore,
+          advancer: prediction.advancer,
         };
 
         grouped[prediction.matchId] = [...(grouped[prediction.matchId] ?? []), entry];
@@ -355,14 +360,28 @@ export function PredictionsPage() {
                               ? `${prediction.homeScore}-${prediction.awayScore}`
                               : "Sin pronostico"}
                           </strong>
+                          {hasPrediction && prediction.advancer ? (
+                            <small className="own-prediction-advance">
+                              Avanza: {prediction.advancer === "home" ? match.home : match.away}
+                            </small>
+                          ) : null}
                         </div>
                       </div>
                     </article>
                   );
                 }
 
-                const scores = draft[match.id] ?? { homeScore: null, awayScore: null };
+                const scores = draft[match.id] ?? {
+                  homeScore: null,
+                  awayScore: null,
+                  advancer: null,
+                };
                 const changeType = pendingChangeByMatchId.get(match.id);
+                const isDrawPick =
+                  scores.homeScore !== null &&
+                  scores.awayScore !== null &&
+                  scores.homeScore === scores.awayScore;
+                const showAdvanceSelector = isKnockoutStage(match.stage) && isDrawPick;
                 const rowClassName = [
                   "prediction-row",
                   changeType === "save" || changeType === "delete" ? "prediction-row--unsaved" : "",
@@ -396,6 +415,14 @@ export function PredictionsPage() {
                       </div>
                       <span>{match.away}</span>
                     </div>
+                    {showAdvanceSelector && (
+                      <AdvanceSelector
+                        homeTeam={match.home}
+                        awayTeam={match.away}
+                        value={scores.advancer ?? null}
+                        onChange={(advancer) => updateAdvancer(match.id, advancer)}
+                      />
+                    )}
                     <div className="prediction-row-actions">
                       <MatchStatusBadge match={match} />
                       {changeType === "save" || changeType === "delete" ? (

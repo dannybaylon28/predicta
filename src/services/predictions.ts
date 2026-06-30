@@ -2,6 +2,7 @@ import {
   Timestamp,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   query,
@@ -11,7 +12,8 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import type { Match, PredictionRecord } from "../types";
+import type { Advancer, Match, PredictionRecord } from "../types";
+import { isKnockoutStage } from "../utils/knockout";
 import { isMatchOpen } from "../utils/matchStatus";
 import { clampGoals } from "../utils/scores";
 
@@ -19,14 +21,30 @@ export type PredictionDraft = {
   matchId: string;
   homeScore: number;
   awayScore: number;
+  advancer?: Advancer | null;
 };
 
 export type ScorePair = {
   homeScore: number | null;
   awayScore: number | null;
+  advancer?: Advancer | null;
 };
 
-export function isCompleteScorePair(scores: ScorePair): scores is { homeScore: number; awayScore: number } {
+function normalizeAdvancer(value: unknown): Advancer | undefined {
+  return value === "home" || value === "away" ? value : undefined;
+}
+
+// El "quien avanza" solo aplica a partidos de KO con prediccion de empate.
+function advancerForMatch(match: Match | undefined, scores: ScorePair): Advancer | undefined {
+  if (!match || !isKnockoutStage(match.stage)) return undefined;
+  if (scores.homeScore === null || scores.awayScore === null) return undefined;
+  if (scores.homeScore !== scores.awayScore) return undefined;
+  return normalizeAdvancer(scores.advancer);
+}
+
+export function isCompleteScorePair(
+  scores: ScorePair,
+): scores is ScorePair & { homeScore: number; awayScore: number } {
   return scores.homeScore !== null && scores.awayScore !== null;
 }
 
@@ -51,6 +69,7 @@ export function mapPrediction(data: Record<string, unknown>): PredictionRecord {
     matchId: String(data.matchId ?? ""),
     homeScore: clampGoals(Number(data.homeScore ?? 0)),
     awayScore: clampGoals(Number(data.awayScore ?? 0)),
+    advancer: normalizeAdvancer(data.advancer),
     kickoffAt,
   };
 }
@@ -136,6 +155,11 @@ export async function saveUserPredictions(
 
     const homeScore = clampGoals(draft.homeScore);
     const awayScore = clampGoals(draft.awayScore);
+    const advancer = advancerForMatch(match, {
+      homeScore,
+      awayScore,
+      advancer: draft.advancer,
+    });
     const ref = doc(db, "leagues", leagueId, "predictions", predictionDocId(userId, draft.matchId));
 
     batch.set(
@@ -145,6 +169,7 @@ export async function saveUserPredictions(
         matchId: draft.matchId,
         homeScore,
         awayScore,
+        advancer: advancer ?? deleteField(),
         kickoffAt: Timestamp.fromDate(new Date(match.kickoffAt)),
         updatedAt: now,
       },
@@ -184,27 +209,36 @@ export async function deleteUserPredictions(
 export async function adminSaveMemberPrediction(
   leagueId: string,
   targetUserId: string,
-  matchId: string,
+  match: Match,
   homeScore: number,
   awayScore: number,
-  kickoffAt: string,
+  advancer?: Advancer | null,
 ): Promise<void> {
   const ref = doc(
     db,
     "leagues",
     leagueId,
     "predictions",
-    predictionDocId(targetUserId, matchId),
+    predictionDocId(targetUserId, match.id),
   );
+
+  const clampedHome = clampGoals(homeScore);
+  const clampedAway = clampGoals(awayScore);
+  const resolvedAdvancer = advancerForMatch(match, {
+    homeScore: clampedHome,
+    awayScore: clampedAway,
+    advancer,
+  });
 
   await setDoc(
     ref,
     {
       userId: targetUserId,
-      matchId,
-      homeScore: clampGoals(homeScore),
-      awayScore: clampGoals(awayScore),
-      kickoffAt: Timestamp.fromDate(new Date(kickoffAt)),
+      matchId: match.id,
+      homeScore: clampedHome,
+      awayScore: clampedAway,
+      advancer: resolvedAdvancer ?? deleteField(),
+      kickoffAt: Timestamp.fromDate(new Date(match.kickoffAt)),
       updatedAt: serverTimestamp(),
     },
     { merge: true },

@@ -8,10 +8,18 @@ import {
   type PredictionDraft,
   type ScorePair,
 } from "../services/predictions";
-import type { Match } from "../types";
+import type { Advancer, Match } from "../types";
 import { getOpenMatches } from "../utils/matchStatus";
 
 type ScoreDraft = Record<string, ScorePair>;
+
+function samePair(a: ScorePair, b: ScorePair): boolean {
+  return (
+    a.homeScore === b.homeScore &&
+    a.awayScore === b.awayScore &&
+    (a.advancer ?? null) === (b.advancer ?? null)
+  );
+}
 
 type PendingChange =
   | { matchId: string; type: "save" }
@@ -20,7 +28,7 @@ type PendingChange =
 
 function buildInitialDraft(
   openMatches: Match[],
-  saved: Record<string, { homeScore: number; awayScore: number }>,
+  saved: Record<string, ScorePair>,
 ): ScoreDraft {
   const draft: ScoreDraft = {};
   openMatches.forEach((match) => {
@@ -28,6 +36,7 @@ function buildInitialDraft(
     draft[match.id] = {
       homeScore: existing?.homeScore ?? null,
       awayScore: existing?.awayScore ?? null,
+      advancer: existing?.advancer ?? null,
     };
   });
   return draft;
@@ -45,7 +54,7 @@ function getPendingChanges(
     const current = draft[match.id] ?? { homeScore: null, awayScore: null };
     const saved = savedSnapshot[match.id] ?? { homeScore: null, awayScore: null };
 
-    if (current.homeScore === saved.homeScore && current.awayScore === saved.awayScore) {
+    if (samePair(current, saved)) {
       return;
     }
 
@@ -103,11 +112,12 @@ export function usePredictions(
 
     try {
       const savedRecords = await loadUserPredictions(leagueId, userId);
-      const saved: Record<string, { homeScore: number; awayScore: number }> = {};
+      const saved: Record<string, ScorePair> = {};
       Object.values(savedRecords).forEach((record) => {
         saved[record.matchId] = {
           homeScore: record.homeScore,
           awayScore: record.awayScore,
+          advancer: record.advancer ?? null,
         };
       });
 
@@ -163,11 +173,7 @@ export function usePredictions(
     openMatches.forEach((match) => {
       const current = draft[match.id];
       const saved = savedSnapshot[match.id];
-      if (
-        current &&
-        saved &&
-        (current.homeScore !== saved.homeScore || current.awayScore !== saved.awayScore)
-      ) {
+      if (current && saved && !samePair(current, saved)) {
         changed[match.id] = current;
         hasDraftChanges = true;
       }
@@ -182,19 +188,37 @@ export function usePredictions(
 
   const updateScore = useCallback(
     (matchId: string, side: "homeScore" | "awayScore", value: number | null) => {
-      setDraft((current) => ({
-        ...current,
-        [matchId]: {
-          homeScore:
-            side === "homeScore" ? value : (current[matchId]?.homeScore ?? null),
-          awayScore:
-            side === "awayScore" ? value : (current[matchId]?.awayScore ?? null),
-        },
-      }));
+      setDraft((current) => {
+        const existing = current[matchId] ?? { homeScore: null, awayScore: null };
+        const homeScore = side === "homeScore" ? value : (existing.homeScore ?? null);
+        const awayScore = side === "awayScore" ? value : (existing.awayScore ?? null);
+        const isDraw = homeScore !== null && awayScore !== null && homeScore === awayScore;
+
+        return {
+          ...current,
+          [matchId]: {
+            homeScore,
+            awayScore,
+            // El "quien avanza" solo tiene sentido con empate; si deja de serlo, se limpia.
+            advancer: isDraw ? (existing.advancer ?? null) : null,
+          },
+        };
+      });
       setSuccess("");
     },
     [],
   );
+
+  const updateAdvancer = useCallback((matchId: string, advancer: Advancer | null) => {
+    setDraft((current) => {
+      const existing = current[matchId] ?? { homeScore: null, awayScore: null };
+      return {
+        ...current,
+        [matchId]: { ...existing, advancer },
+      };
+    });
+    setSuccess("");
+  }, []);
 
   const pendingChanges = useMemo(
     () => getPendingChanges(openMatches, draft, savedSnapshot, savedPredictionIds),
@@ -227,13 +251,14 @@ export function usePredictions(
 
     const toSave: PredictionDraft[] = actionableChanges
       .filter((change): change is { matchId: string; type: "save" } => change.type === "save")
-      .map((change) => {
+      .map((change): PredictionDraft | null => {
         const scores = draft[change.matchId];
         if (!scores || !isCompleteScorePair(scores)) return null;
         return {
           matchId: change.matchId,
           homeScore: scores.homeScore,
           awayScore: scores.awayScore,
+          advancer: scores.advancer ?? null,
         };
       })
       .filter((entry): entry is PredictionDraft => entry !== null);
@@ -257,7 +282,7 @@ export function usePredictions(
           if (scores) next[entry.matchId] = { ...scores };
         });
         toDelete.forEach((matchId) => {
-          next[matchId] = { homeScore: null, awayScore: null };
+          next[matchId] = { homeScore: null, awayScore: null, advancer: null };
         });
         return next;
       });
@@ -334,6 +359,7 @@ export function usePredictions(
     partialChangeCount,
     pendingChangeByMatchId,
     updateScore,
+    updateAdvancer,
     saveAll,
     reload: load,
   };
