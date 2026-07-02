@@ -157,7 +157,11 @@ function mapGame(
           status,
           homeScore,
           awayScore,
-          getKoEnrichment(koEnrichment, game.home_team_name_en, game.away_team_name_en),
+          getKoEnrichment(
+            koEnrichment,
+            game.home_team_name_en ?? game.home_team_label,
+            game.away_team_name_en ?? game.away_team_label,
+          ),
         )
       : {};
 

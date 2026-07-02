@@ -6,7 +6,8 @@ import { useMatches } from "../context/MatchesContext";
 import { useLeaderboard } from "../hooks/useLeaderboard";
 import { scoringLabels } from "../constants/scoring";
 import { computeLeaderboard } from "../services/leaderboard";
-import { calculateMatchPoints } from "../utils/scoring";
+import { calculateMatchPointsWithAdvance } from "../utils/scoring";
+import { isKnockoutStage } from "../utils/knockout";
 import { buildLeaderboardMatchdayTabs } from "../utils/matchFilters";
 
 const GENERAL_TAB = "general";
@@ -158,15 +159,27 @@ export function LeaderboardPage() {
                           const pred = predictions.find(
                             (p) => p.userId === member.id && p.matchId === match.id,
                           );
+                          const resultHome = match.regulationHomeScore ?? match.homeScore!;
+                          const resultAway = match.regulationAwayScore ?? match.awayScore!;
+
                           const outcome = pred
-                            ? calculateMatchPoints(
+                            ? calculateMatchPointsWithAdvance(
                                 {
                                   scoringMode: selectedLeague.scoringMode,
                                   resultPoints: selectedLeague.resultPoints,
                                   exactBonus: selectedLeague.exactBonus,
                                 },
-                                { homeScore: pred.homeScore, awayScore: pred.awayScore },
-                                { homeScore: match.homeScore!, awayScore: match.awayScore! },
+                                {
+                                  homeScore: pred.homeScore,
+                                  awayScore: pred.awayScore,
+                                  advancer: pred.advancer,
+                                },
+                                {
+                                  homeScore: resultHome,
+                                  awayScore: resultAway,
+                                  decidedInExtraTime: match.decidedInExtraTime,
+                                  advancer: match.advancer,
+                                },
                               )
                             : { points: 0, isExact: false, isResultCorrect: false };
 
@@ -191,6 +204,10 @@ export function LeaderboardPage() {
                             if (outcome.isExact) hitLabel = "Exacto";
                             else if (outcome.isResultCorrect) hitLabel = "Acierto";
 
+                            const isKo = isKnockoutStage(match.stage);
+                            const has90 = match.regulationHomeScore !== undefined && match.regulationAwayScore !== undefined;
+                            const showEt = isKo && match.decidedInExtraTime;
+
                             return (
                               <li key={match.id} className="member-detail-item">
                                 <div className="detail-match-info">
@@ -198,13 +215,20 @@ export function LeaderboardPage() {
                                     {match.home} vs {match.away}
                                   </strong>
                                   <span>
-                                    (Resultado: {match.homeScore}-{match.awayScore})
+                                    (Resultado: {match.homeScore}-{match.awayScore}
+                                    {showEt && has90 ? ` [90': ${match.regulationHomeScore}-${match.regulationAwayScore}]` : ""}
+                                    )
                                   </span>
                                 </div>
                                 <div className="detail-pred-info">
                                   <span>
                                     Pronóstico:{" "}
                                     {pred ? `${pred.homeScore}-${pred.awayScore}` : "Sin pronóstico"}
+                                    {isKo && pred?.homeScore === pred?.awayScore && pred?.advancer && (
+                                      <small style={{ marginLeft: "0.35rem", opacity: 0.8 }}>
+                                        (Paso: {pred.advancer === "home" ? match.home : match.away})
+                                      </small>
+                                    )}
                                   </span>
                                   {hitLabel && (
                                     <span className={`hit-badge ${hitLabel.toLowerCase()}`}>
